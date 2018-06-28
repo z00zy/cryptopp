@@ -1423,13 +1423,21 @@ public:
 	/// \return the standard algorithm name
 	virtual std::string AlgorithmName() const =0;
 
-	/// \brief Determine minimum number of bytes
+	/// \brief Determine minimum number of derived bytes
 	/// \returns Minimum number of bytes which can be derived
 	virtual size_t MinDerivedLength() const;
 
-	/// \brief Determine maximum number of bytes
+	/// \brief Determine maximum number of derived bytes
 	/// \returns Maximum number of bytes which can be derived
 	virtual size_t MaxDerivedLength() const;
+
+	/// \brief Determine minimum number of secret bytes
+	/// \returns Minimum number of bytes for the secret
+	virtual size_t MinSecretLength() const;
+
+	/// \brief Determine maximum number of secret bytes
+	/// \returns Maximum number of bytes for the secret
+	virtual size_t MaxSecretLength() const;
 
 	/// \brief Returns a valid key length for the derivation function
 	/// \param keylength the size of the derived key, in bytes

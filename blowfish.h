@@ -2,6 +2,8 @@
 
 /// \file blowfish.h
 /// \brief Classes for the Blowfish block cipher
+/// \sa <a href="http://www.cryptopp.com/wiki/Blowfish">Blowfish</a>
+/// \since Crypto++ 1.0
 
 #ifndef CRYPTOPP_BLOWFISH_H
 #define CRYPTOPP_BLOWFISH_H
@@ -17,9 +19,8 @@ struct Blowfish_Info : public FixedBlockSize<8>, public VariableKeyLength<16, 4,
 	CRYPTOPP_STATIC_CONSTEXPR const char* StaticAlgorithmName() {return "Blowfish";}
 };
 
-// <a href="http://www.cryptopp.com/wiki/Blowfish">Blowfish</a>
-
 /// \brief Blowfish block cipher
+/// \sa <a href="http://www.cryptopp.com/wiki/Blowfish">Blowfish</a>
 /// \since Crypto++ 1.0
 class Blowfish : public Blowfish_Info, public BlockCipherDocumentation
 {
@@ -31,9 +32,14 @@ class Blowfish : public Blowfish_Info, public BlockCipherDocumentation
 		void ProcessAndXorBlock(const byte *inBlock, const byte *xorBlock, byte *outBlock) const;
 		void UncheckedSetKey(const byte *key_string, unsigned int keylength, const NameValuePairs &params);
 
-	private:
+	protected:
 		void crypt_block(const word32 in[2], word32 out[2]) const;
 
+		friend class Bcrypt;
+		void EksBlowfishSetup(word32 cost, const byte* salt, size_t saltLen, const byte* key, size_t keyLen);
+		void EksBlowfishExpand(const byte* salt, size_t saltLen, const byte* key, size_t keyLen);
+
+	private:
 		static const word32 p_init[ROUNDS+2];
 		static const word32 s_init[4*256];
 

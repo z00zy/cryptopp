@@ -26,6 +26,8 @@ base64.cpp
 base64.h
 basecode.cpp
 basecode.h
+bcrypt.cpp
+bcrypt.h
 bench.h
 bds10.zip
 bench1.cpp

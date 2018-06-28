@@ -349,6 +349,16 @@ size_t KeyDerivationFunction::MaxDerivedLength() const
 	return static_cast<size_t>(-1);
 }
 
+size_t KeyDerivationFunction::MinSecretLength() const
+{
+	return 0;
+}
+
+size_t KeyDerivationFunction::MaxSecretLength() const
+{
+	return static_cast<size_t>(-1);
+}
+
 void KeyDerivationFunction::ThrowIfInvalidDerivedLength(size_t length) const
 {
 	if (!IsValidDerivedLength(length))
