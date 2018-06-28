@@ -10,7 +10,7 @@
 /// \sa <A HREF="https://www.usenix.org/legacy/event/usenix99/provos/provos.pdf">A
 ///   Future-Adaptable Password Scheme</a> and <A
 ///   HREF="https://cvsweb.openbsd.org/cgi-bin/cvsweb/src/lib/libc/crypt/bcrypt.c">
-//    OpenBSD bcrypt.c source file</A>
+///   OpenBSD bcrypt.c source file</A>
 /// \since Crypto++ 7.1
 
 #ifndef CRYPTOPP_BCRYPT_H
@@ -31,7 +31,7 @@ NAMESPACE_BEGIN(CryptoPP)
 /// \sa <A HREF="https://www.usenix.org/legacy/event/usenix99/provos/provos.pdf">A
 ///   Future-Adaptable Password Scheme</a> and <A
 ///   HREF="https://cvsweb.openbsd.org/cgi-bin/cvsweb/src/lib/libc/crypt/bcrypt.c">
-//    OpenBSD bcrypt.c source code</A>
+///   OpenBSD bcrypt.c source code</A>
 /// \since Crypto++ 7.1
 class Bcrypt : public KeyDerivationFunction
 {
@@ -80,7 +80,7 @@ public:
     ///   provides an overload that accepts most parameters used by the derivation function.
     /// \details According to <A
     ///   HREF="https://cvsweb.openbsd.org/cgi-bin/cvsweb/src/lib/libc/crypt/bcrypt.c">
-    //    OpenBSD bcrypt.c source code</A> the <tt>secret</tt> should be in the range
+    ///   OpenBSD bcrypt.c source code</A> the <tt>secret</tt> should be in the range
     ///   <tt>[0, 72]</tt>, inclusive.
     /// \details The <tt>cost</tt> parameter is a log2 iteration count.
     /// \details The <tt>truncBug</tt> parameter is a flag that indicates if the
