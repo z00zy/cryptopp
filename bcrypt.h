@@ -88,8 +88,8 @@ public:
     ///   implementation. The bug was discovered and corrected in 2015. A buggy implementation
     ///   truncates the password length to a single 8-bit byte/octet and uses <tt>$2a$<tt>.
     ///   A corrected implementation uses <tt>$2b$<tt>.
-	/// \warn Bcrypt is experimental at the moment. It does not arrive at a correct result.
-	///   Do not use in a production system.
+    /// \warn Bcrypt is experimental at the moment. It does not arrive at a correct result.
+    ///   Do not use in a production system.
     size_t DeriveKey(byte *derived, size_t derivedLen, const byte *secret, size_t secretLen,
         const byte *salt, size_t saltLen, word32 cost=10, bool truncBug=false) const;
 
