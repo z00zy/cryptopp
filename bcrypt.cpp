@@ -1,4 +1,4 @@
-// bcrypt.cpp - written and placed in public domain by Jeffrey Walton.
+// bcrypt.cpp - written and placed in public domain Olaf van der Spek and Jeffrey Walton.
 
 #include "pch.h"
 

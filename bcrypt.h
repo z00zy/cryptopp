@@ -1,4 +1,4 @@
-// bcrypt.h - written and placed in public domain by Jeffrey Walton.
+// bcrypt.h - written and placed in public domain by Olaf van der Spek and Jeffrey Walton.
 
 /// \file bcrypt.h
 /// \brief Bcrypt key derivation function
