@@ -32,6 +32,8 @@
 #include "validate.h"
 #include "bench.h"
 
+#include "bcrypt.h"
+
 #include <iostream>
 #include <sstream>
 #include <locale>
@@ -154,6 +156,42 @@ int scoped_main(int argc, char *argv[])
 		// Fetch the SymmetricCipher interface, not the RandomNumberGenerator interface, to key the underlying cipher
 		OFB_Mode<AES>::Encryption& aesg = dynamic_cast<OFB_Mode<AES>::Encryption&>(GlobalRNG());
 		aesg.SetKeyWithIV((byte *)seed.data(), 16, (byte *)seed.data());
+
+		/*
+		 * Botan test vector. Note that Botan and other implementations are not handling
+		 * the truncation bug correctly. We really need a reference implementation from
+		 * the OpenBSD folks to remove confusion and generate test vectors.
+		 *
+		 * Password: abc
+		 * Salt: 16147436e008f0056afe16461e258ddd...
+		 * Digest: f09adacb994a66245e9c13794afe65194c18a23cefa2b519
+		 */
+		std::string password = "abc";
+		std::string salt = "\x16\x14\x74\x36\xe0\x08\xf0\x05\x6a\xfe\x16\x46\x1e\x25\x8d\xdd";
+		unsigned int cost = 5;
+		byte digest[24];
+
+		Bcrypt().DeriveKey(digest, 24, (byte*)password.c_str(), password.length()+1,
+							(byte*)salt.c_str(), salt.size(), cost);
+
+		std::cout << "Cost: " << cost << std::endl;
+
+		std::cout << "Salt: ";
+		StringSource(salt, true, new HexEncoder(new FileSink(std::cout)));
+		std::cout << std::endl;
+
+		std::cout << "Digest: ";
+		StringSource(digest, sizeof(digest), true, new HexEncoder(new FileSink(std::cout)));
+		std::cout << std::endl;
+
+		std::string expected = "\xf0\x9a\xda\xcb\x99\x4a\x66\x24\x5e\x9c\x13\x79\x4a\xfe\x65\x19\x4c\x18\xa2\x3c\xef\xa2\xb5\x19";
+
+		std::cout << "Expected: ";
+		StringSource(expected, true, new HexEncoder(new FileSink(std::cout)));
+		std::cout << std::endl;
+
+		if (argc < 10)
+			return 0;
 
 		std::string command, executableName, macFilename;
 
