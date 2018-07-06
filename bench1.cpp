@@ -296,18 +296,17 @@ void BenchMarkByName2(const char *factoryName, size_t keyLength = 0, const char 
 	std::string name(factoryName ? factoryName : "");
 	member_ptr<T_FactoryOutput> obj(ObjectFactoryRegistry<T_FactoryOutput>::Registry().CreateObject(name.c_str()));
 
-	if (!keyLength)
+	if (keyLength == 0)
 		keyLength = obj->DefaultKeyLength();
 
-	if (displayName)
+	if (displayName != NULLPTR)
 		name = displayName;
-	else if (keyLength)
+	else if (keyLength != 0)
 		name += " (" + IntToString(keyLength * 8) + "-bit key)";
 
-	const int blockSize = params.GetIntValueWithDefault(Name::BlockSize(), 0);
-	obj->SetKey(defaultKey, keyLength, CombinedNameValuePairs(params, MakeParameters(Name::IV(), ConstByteArrayParameter(defaultKey, blockSize ? blockSize : obj->IVSize()), false)));
+	obj->SetKey(defaultKey, keyLength, CombinedNameValuePairs(params, MakeParameters(Name::IV(), ConstByteArrayParameter(defaultKey, obj->IVSize()), false)));
 	BenchMark(name.c_str(), *static_cast<T_Interface *>(obj.get()), g_allocatedTime);
-	BenchMarkKeying(*obj, keyLength, CombinedNameValuePairs(params, MakeParameters(Name::IV(), ConstByteArrayParameter(defaultKey, blockSize ? blockSize : obj->IVSize()), false)));
+	BenchMarkKeying(*obj, keyLength, CombinedNameValuePairs(params, MakeParameters(Name::IV(), ConstByteArrayParameter(defaultKey, obj->IVSize()), false)));
 }
 
 template <class T_FactoryOutput>
@@ -566,6 +565,10 @@ void Benchmark2(double t, double hertz)
 		BenchMarkByName<SymmetricCipher>("ChaCha12");
 		BenchMarkByName<SymmetricCipher>("ChaCha8");
 		BenchMarkByName<SymmetricCipher>("Sosemanuk");
+		BenchMarkByName<SymmetricCipher>("Rabbit");
+		BenchMarkByName<SymmetricCipher>("RabbitWithIV");
+		BenchMarkByName<SymmetricCipher>("HC-128");
+		BenchMarkByName<SymmetricCipher>("HC-256");
 		BenchMarkByName<SymmetricCipher>("MARC4");
 		BenchMarkByName<SymmetricCipher>("SEAL-3.0-LE");
 		BenchMarkByName<SymmetricCipher>("WAKE-OFB-LE");
@@ -604,8 +607,6 @@ void Benchmark2(double t, double hertz)
 		BenchMarkByName<SymmetricCipher>("IDEA/CTR");
 		BenchMarkByName<SymmetricCipher>("RC5/CTR", 0, "RC5 (r=16)");
 		BenchMarkByName<SymmetricCipher>("Blowfish/CTR");
-		BenchMarkByName<SymmetricCipher>("TEA/CTR");
-		BenchMarkByName<SymmetricCipher>("XTEA/CTR");
 		BenchMarkByName<SymmetricCipher>("SKIPJACK/CTR");
 		BenchMarkByName<SymmetricCipher>("SEED/CTR", 0, "SEED/CTR (1/2 K table)");
 		BenchMarkByName<SymmetricCipher>("SM4/CTR");
@@ -627,6 +628,9 @@ void Benchmark2(double t, double hertz)
 		BenchMarkByName<SymmetricCipher>("LEA-128/CTR", 24, "LEA-128(192)/CTR (192-bit key)");
 		BenchMarkByName<SymmetricCipher>("LEA-128/CTR", 32, "LEA-128(256)/CTR (256-bit key)");
 
+		BenchMarkByName<SymmetricCipher>("SIMECK-32/CTR", 8, "SIMECK-32(64)/CTR (64-bit key)");
+		BenchMarkByName<SymmetricCipher>("SIMECK-64/CTR", 16, "SIMECK-64(128)/CTR (128-bit key)");
+
 		BenchMarkByName<SymmetricCipher>("SIMON-64/CTR", 12, "SIMON-64(96)/CTR (96-bit key)");
 		BenchMarkByName<SymmetricCipher>("SIMON-64/CTR", 16, "SIMON-64(128)/CTR (128-bit key)");
 		BenchMarkByName<SymmetricCipher>("SIMON-128/CTR", 16, "SIMON-128(128)/CTR (128-bit key)");
@@ -638,6 +642,9 @@ void Benchmark2(double t, double hertz)
 		BenchMarkByName<SymmetricCipher>("SPECK-128/CTR", 16, "SPECK-128(128)/CTR (128-bit key)");
 		BenchMarkByName<SymmetricCipher>("SPECK-128/CTR", 24, "SPECK-128(192)/CTR (192-bit key)");
 		BenchMarkByName<SymmetricCipher>("SPECK-128/CTR", 32, "SPECK-128(256)/CTR (256-bit key)");
+
+		BenchMarkByName<SymmetricCipher>("TEA/CTR");
+		BenchMarkByName<SymmetricCipher>("XTEA/CTR");
 	}
 
 	std::cout << "\n<TBODY style=\"background: white;\">";

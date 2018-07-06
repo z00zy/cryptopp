@@ -22,6 +22,9 @@
 #include "vmac.h"
 #include "tiger.h"
 #include "sosemanuk.h"
+#include "rabbit.h"
+#include "hc128.h"
+#include "hc256.h"
 #include "arc4.h"
 #include "ccm.h"
 #include "gcm.h"
@@ -35,6 +38,7 @@
 #include "threefish.h"
 #include "cham.h"
 #include "lea.h"
+#include "simeck.h"
 #include "simon.h"
 #include "speck.h"
 #include "sm4.h"
@@ -118,6 +122,10 @@ void RegisterFactories2()
 	RegisterSymmetricCipherDefaultFactories<ChaCha12>();
 	RegisterSymmetricCipherDefaultFactories<ChaCha20>();
 	RegisterSymmetricCipherDefaultFactories<Sosemanuk>();
+	RegisterSymmetricCipherDefaultFactories<Rabbit>();
+	RegisterSymmetricCipherDefaultFactories<RabbitWithIV>();
+	RegisterSymmetricCipherDefaultFactories<HC128>();
+	RegisterSymmetricCipherDefaultFactories<HC256>();
 	RegisterSymmetricCipherDefaultFactories<Weak::MARC4>();
 	RegisterSymmetricCipherDefaultFactories<WAKE_OFB<LittleEndian> >();
 	RegisterSymmetricCipherDefaultFactories<WAKE_OFB<BigEndian> >();
@@ -177,12 +185,17 @@ void RegisterFactories2()
 	RegisterSymmetricCipherDefaultFactories<CBC_Mode<LEA> >(); // Test Vectors
 	RegisterSymmetricCipherDefaultFactories<CTR_Mode<LEA> >(); // Benchmarks
 
+	RegisterSymmetricCipherDefaultFactories<ECB_Mode<SIMECK32> >(); // Test Vectors
+	RegisterSymmetricCipherDefaultFactories<CTR_Mode<SIMECK32> >(); // Benchmarks
+	RegisterSymmetricCipherDefaultFactories<ECB_Mode<SIMECK64> >(); // Test Vectors
+	RegisterSymmetricCipherDefaultFactories<CTR_Mode<SIMECK64> >(); // Benchmarks
+
 	RegisterSymmetricCipherDefaultFactories<ECB_Mode<SIMON64> >();  // Test Vectors
 	RegisterSymmetricCipherDefaultFactories<CBC_Mode<SIMON64> >();  // Test Vectors
 	RegisterSymmetricCipherDefaultFactories<ECB_Mode<SIMON128> >(); // Test Vectors
 	RegisterSymmetricCipherDefaultFactories<CBC_Mode<SIMON128> >(); // Test Vectors
 	RegisterSymmetricCipherDefaultFactories<CTR_Mode<SIMON64> >();  // Benchmarks
-	RegisterSymmetricCipherDefaultFactories<CTR_Mode<SIMON128> >();  // Benchmarks
+	RegisterSymmetricCipherDefaultFactories<CTR_Mode<SIMON128> >(); // Benchmarks
 
 	RegisterSymmetricCipherDefaultFactories<ECB_Mode<SPECK64> >();  // Test Vectors
 	RegisterSymmetricCipherDefaultFactories<CBC_Mode<SPECK64> >();  // Test Vectors

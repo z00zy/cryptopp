@@ -191,6 +191,12 @@
     <ClCompile Include="gzip.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="hc128.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="hc256.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="hex.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -305,6 +311,9 @@
     <ClCompile Include="randpool.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="rabbit.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="rc2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -375,6 +384,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="sharkbox.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="simeck.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="simeck-simd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="simon.cpp">
@@ -660,6 +675,12 @@
     <ClInclude Include="gzip.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="hc128.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="hc256.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="hex.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -795,6 +816,9 @@
     <ClInclude Include="randpool.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="rabbit.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="rc2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -856,6 +880,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="shark.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="simeck.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="simon.h">
