@@ -129,6 +129,13 @@ else
   CXXFLAGS ?= -DNDEBUG -g2 -O3
 endif
 
+# On ARM we may compile aes-armv4.S though the CC compiler
+ifeq ($(GCC_COMPILER),1)
+  CC=gcc
+else ifeq ($(CLANG_COMPILER),1)
+  CC=clang
+endif
+
 # Default prefix for make install
 ifeq ($(PREFIX),)
 PREFIX = /usr/local
@@ -723,20 +730,31 @@ SRCS += winpipes.cpp
 INCL += resource.h
 endif
 
+# Cryptogams AES for ARMv4 and above. We couple to ARMv7.
+# Disable Thumb via -marm due to unaligned byte buffers.
+ifeq ($(IS_ARM32),1)
+CRYPTOGAMS_AES_ARCH = -march=armv7-a -marm
+SRCS += aes-armv4.S
+endif
+
 # List cryptlib.cpp first, then cpu.cpp, then integer.cpp to tame C++ static initialization problems.
 OBJS := $(SRCS:.cpp=.o)
+OBJS := $(OBJS:.S=.o)
 
 # List test.cpp first to tame C++ static initialization problems.
 TESTSRCS := adhoc.cpp test.cpp bench1.cpp bench2.cpp validat0.cpp validat1.cpp validat2.cpp validat3.cpp validat4.cpp datatest.cpp regtest1.cpp regtest2.cpp regtest3.cpp dlltest.cpp fipsalgt.cpp
 TESTINCL := bench.h factory.h validate.h
+
 # Test objects
 TESTOBJS := $(TESTSRCS:.cpp=.o)
 LIBOBJS := $(filter-out $(TESTOBJS),$(OBJS))
 
-# List cryptlib.cpp first, then cpu.cpp, then integer.cpp to tame C++ static initialization problems.
-DLLSRCS :=  cryptlib.cpp cpu.cpp integer.cpp 3way.cpp adler32.cpp algebra.cpp algparam.cpp arc4.cpp aria-simd.cpp aria.cpp ariatab.cpp asn.cpp authenc.cpp base32.cpp base64.cpp basecode.cpp bfinit.cpp blake2-simd.cpp blake2.cpp blowfish.cpp blumshub.cpp camellia.cpp cast.cpp casts.cpp cbcmac.cpp ccm.cpp chacha.cpp channels.cpp cmac.cpp crc-simd.cpp crc.cpp default.cpp des.cpp dessp.cpp dh.cpp dh2.cpp dll.cpp dsa.cpp eax.cpp ec2n.cpp eccrypto.cpp ecp.cpp elgamal.cpp emsa2.cpp eprecomp.cpp esign.cpp files.cpp filters.cpp fips140.cpp fipstest.cpp gcm-simd.cpp gcm.cpp gf256.cpp gf2_32.cpp gf2n.cpp gfpcrypt.cpp gost.cpp gzip.cpp hex.cpp hmac.cpp hrtimer.cpp ida.cpp idea.cpp iterhash.cpp kalyna.cpp kalynatab.cpp keccak.cpp luc.cpp mars.cpp marss.cpp md2.cpp md4.cpp md5.cpp misc.cpp modes.cpp mqueue.cpp mqv.cpp nbtheory.cpp neon-simd.cpp network.cpp oaep.cpp ospstore.cpp osrng.cpp panama.cpp pkcspad.cpp poly1305.cpp polynomi.cpp pssr.cpp pubkey.cpp queue.cpp rabin.cpp randpool.cpp rc2.cpp rc5.cpp rc6.cpp rdrand.cpp rdtables.cpp rijndael.cpp ripemd.cpp rng.cpp rsa.cpp rw.cpp safer.cpp salsa.cpp seal.cpp seed.cpp serpent.cpp sha-simd.cpp sha.cpp sha3.cpp shacal2-simd.cpp shacal2.cpp shark.cpp sharkbox.cpp skipjack.cpp socketft.cpp sosemanuk.cpp square.cpp squaretb.cpp strciphr.cpp tea.cpp tftables.cpp threefish.cpp tiger.cpp tigertab.cpp trdlocal.cpp ttmac.cpp twofish.cpp vmac.cpp wait.cpp wake.cpp whrlpool.cpp xtr.cpp xtrcrypt.cpp zdeflate.cpp zinflate.cpp zlib.cpp
-
+# In Crypto++ 5.6.2 these were the source and object files for the FIPS DLL.
+# Since the library is on the Historical Validation List we add all files.
+# The 5.6.2 list is at https://github.com/weidai11/cryptopp/blob/789f81f048c9.
+DLLSRCS := $(SRCS)
 DLLOBJS := $(DLLSRCS:.cpp=.export.o)
+DLLOBJS := $(DLLOBJS:.S=.export.o)
 
 # Import lib testing
 LIBIMPORTOBJS := $(LIBOBJS:.o=.import.o)
@@ -806,13 +824,17 @@ test check: cryptest.exe
 # Used to generate list of source files for Autotools, CMakeList, Android.mk, etc
 .PHONY: sources
 sources: adhoc.cpp
-	$(info Library sources: $(filter-out $(TESTSRCS),$(SRCS)))
+	$(info ***** Library sources *****)
+	$(info $(filter-out $(TESTSRCS),$(SRCS)))
 	$(info )
-	$(info Library headers: $(filter-out $(TESTINCL),$(INCL)))
+	$(info ***** Library headers *****)
+	$(info $(filter-out $(TESTINCL),$(INCL)))
 	$(info )
-	$(info Test sources: $(TESTSRCS))
+	$(info ***** Test sources *****)
+	$(info $(TESTSRCS))
 	$(info )
-	$(info Test headers: $(TESTINCL))
+	$(info ***** Test sources *****)
+	$(info $(TESTSRCS))
 
 # Directory we want (can't specify on Doygen command line)
 DOCUMENT_DIRECTORY := ref$(LIB_VER)
@@ -851,8 +873,8 @@ clean:
 distclean: clean
 	-$(RM) adhoc.cpp adhoc.cpp.copied GNUmakefile.deps benchmarks.html cryptest.txt cryptest-*.txt
 	@-$(RM) libcryptopp.pc cryptopp.tgz *.o *.bc *.ii *~
-	@-$(RM) -r $(SRCS:.cpp=.obj) cryptlib.lib cryptest.exe *.suo *.sdf *.pdb Win32/ x64/ ipch/
-	@-$(RM) -r $(DOCUMENT_DIRECTORY)/
+	@-$(RM) -r cryptlib.lib cryptest.exe *.suo *.sdf *.pdb Win32/ x64/ ipch/
+	@-$(RM) -r $(LIBOBJS:.o=.obj) $(TESTOBJS:.o=.obj) $(DOCUMENT_DIRECTORY)/
 	@-$(RM) -f configure.ac configure configure.in Makefile.am Makefile.in Makefile
 	@-$(RM) -f config.guess config.status config.sub depcomp install-sh compile
 	@-$(RM) -f stamp-h1 ar-lib *.m4 local.* lt*.sh missing libtool* libcryptopp.pc*
@@ -982,7 +1004,7 @@ libcryptopp.pc:
 	@echo 'Libs: -L$${libdir} -lcryptopp' >> libcryptopp.pc
 
 # This recipe prepares the distro files
-TEXT_FILES := *.h *.cpp adhoc.cpp.proto License.txt Readme.txt Install.txt Filelist.txt Doxyfile cryptest* cryptlib* dlltest* cryptdll* *.sln *.vcxproj *.filters cryptopp.rc TestVectors/*.txt TestData/*.dat TestScripts/*.sh TestScripts/*.cmd
+TEXT_FILES := *.h *.cpp adhoc.cpp.proto License.txt Readme.txt Install.txt Filelist.txt Doxyfile cryptest* cryptlib* dlltest* cryptdll* *.sln *.s *.S *.vcxproj *.filters cryptopp.rc TestVectors/*.txt TestData/*.dat TestScripts/*.sh TestScripts/*.cmd
 EXEC_FILES := GNUmakefile GNUmakefile-cross TestData/ TestVectors/ TestScripts/
 
 ifeq ($(wildcard Filelist.txt),Filelist.txt)
@@ -992,11 +1014,11 @@ endif
 .PHONY: trim
 trim:
 ifneq ($(IS_DARWIN),0)
-	sed -i '' -e's/[[:space:]]*$$//' *.supp *.txt *.sh .*.yml *.h *.cpp *.asm *.s *.sln *.vcxproj *.filters GNUmakefile GNUmakefile-cross
+	sed -i '' -e's/[[:space:]]*$$//' *.supp *.txt *.sh .*.yml *.h *.cpp *.asm *.s *.S *.sln *.vcxproj *.filters GNUmakefile GNUmakefile-cross
 	sed -i '' -e's/[[:space:]]*$$//' TestData/*.dat TestVectors/*.txt TestScripts/*.*
 	make convert
 else
-	sed -i -e's/[[:space:]]*$$//' *.supp *.txt *.sh .*.yml *.h *.cpp *.asm *.s *.sln *.vcxproj *.filters GNUmakefile GNUmakefile-cross
+	sed -i -e's/[[:space:]]*$$//' *.supp *.txt *.sh .*.yml *.h *.cpp *.asm *.s *.S *.sln *.vcxproj *.filters GNUmakefile GNUmakefile-cross
 	sed -i -e's/[[:space:]]*$$//' TestData/*.dat TestVectors/*.txt TestScripts/*.*
 	make convert
 endif
@@ -1052,11 +1074,9 @@ ifeq ($(wildcard GNUmakefile.deps),GNUmakefile.deps)
 -include GNUmakefile.deps
 endif # Dependencies
 
-# IBM XLC -O3 optimization bug
-ifeq ($(XLC_COMPILER),1)
-sm3.o : sm3.cpp
-	$(CXX) $(strip $(subst -O3,-O2,$(CXXFLAGS)) -c) $<
-endif
+# Cryptogams ARM asm implementation. CRYPTOGAMS_AES_ARCH includes -marm.
+aes-armv4.o : aes-armv4.S
+	$(CC) $(strip $(CXXFLAGS) $(CRYPTOGAMS_AES_ARCH) -mfloat-abi=$(FP_ABI) -c) $<
 
 # SSSE3 or NEON available
 aria-simd.o : aria-simd.cpp
@@ -1117,6 +1137,12 @@ simon-simd.o : simon-simd.cpp
 # SSSE3 or NEON available
 speck-simd.o : speck-simd.cpp
 	$(CXX) $(strip $(CXXFLAGS) $(SPECK_FLAG) -c) $<
+
+# IBM XLC -O3 optimization bug
+ifeq ($(XLC_COMPILER),1)
+sm3.o : sm3.cpp
+	$(CXX) $(strip $(subst -O3,-O2,$(CXXFLAGS)) -c) $<
+endif
 
 # Don't build Rijndael with UBsan. Too much noise due to unaligned data accesses.
 ifneq ($(findstring -fsanitize=undefined,$(CXXFLAGS)),)

@@ -281,19 +281,8 @@ bool TestSettings()
 	std::cout << "Library version (library): " << v1 << ", header version (app): " << v2 << "\n";
 #endif
 
-#ifdef CRYPTOPP_ALLOW_UNALIGNED_DATA_ACCESS
-	// Don't assert the alignment of testvals. That's what this test is for.
-	byte testvals[10] = {1,2,2,3,3,3,3,2,2,1};
-	if (*(word32 *)(void *)(testvals+3) == 0x03030303 && *(word64 *)(void *)(testvals+1) == W64LIT(0x0202030303030202))
-		std::cout << "passed:  Unaligned data access (CRYPTOPP_ALLOW_UNALIGNED_DATA_ACCESS).\n";
-	else
-	{
-		std::cout << "FAILED:  Unaligned data access gave incorrect results.\n";
-		pass = false;
-	}
-#else
-	std::cout << "passed:  Aligned data access (no CRYPTOPP_ALLOW_UNALIGNED_DATA_ACCESS).\n";
-#endif
+	// CRYPTOPP_ALLOW_UNALIGNED_DATA_ACCESS removed at Issue 682.
+	std::cout << "passed:  Aligned data access.\n";
 
 	if (sizeof(byte) == 1)
 		std::cout << "passed:  ";
@@ -383,13 +372,16 @@ bool TestSettings()
 	bool hasSHA = HasSHA();
 	bool isP4 = IsP4();
 
-	std::cout << "hasSSE2 == " << hasSSE2 << ", hasSSSE3 == " << hasSSSE3 << ", hasSSE4.1 == " << hasSSE41;
-	std::cout << ", hasSSE4.2 == " << hasSSE42 << ", hasAVX == " << hasAVX << ", hasAVX2 == " << hasAVX2;
-	std::cout << ", hasAESNI == " << hasAESNI << ", hasCLMUL == " << hasCLMUL << ", hasRDRAND == " << hasRDRAND;
-	std::cout << ", hasRDSEED == " << hasRDSEED << ", hasSHA == " << hasSHA << ", isP4 == " << isP4;
+	std::cout << "hasSSE2 == " << hasSSE2 << ", hasSSSE3 == " << hasSSSE3;
+	std::cout << ", hasSSE4.1 == " << hasSSE41 << ", hasSSE4.2 == " << hasSSE42;
+	std::cout << ", hasAVX == " << hasAVX << ", hasAVX2 == " << hasAVX2;
+	std::cout << ", hasAESNI == " << hasAESNI << ", hasCLMUL == " << hasCLMUL;
+	std::cout << ", hasRDRAND == " << hasRDRAND << ", hasRDSEED == " << hasRDSEED;
+	std::cout << ", hasSHA == " << hasSHA << ", isP4 == " << isP4;
 	std::cout << "\n";
 
 #elif (CRYPTOPP_BOOL_ARM32 || CRYPTOPP_BOOL_ARM64)
+	bool hasARMv7 = HasARMv7();
 	bool hasNEON = HasNEON();
 	bool hasCRC32 = HasCRC32();
 	bool hasPMULL = HasPMULL();
@@ -398,8 +390,10 @@ bool TestSettings()
 	bool hasSHA2 = HasSHA2();
 
 	std::cout << "passed:  ";
-	std::cout << "hasNEON == " << hasNEON << ", hasCRC32 == " << hasCRC32 << ", hasPMULL == " << hasPMULL;
-	std::cout << ", hasAES == " << hasAES << ", hasSHA1 == " << hasSHA1 << ", hasSHA2 == " << hasSHA2 << "\n";
+	std::cout << "hasARMv7 == " << hasARMv7 << ", hasNEON == " << hasNEON;
+	std::cout << ", hasCRC32 == " << hasCRC32 << ", hasPMULL == " << hasPMULL;
+	std::cout << ", hasAES == " << hasAES << ", hasSHA1 == " << hasSHA1;
+	std::cout << ", hasSHA2 == " << hasSHA2 << "\n";
 
 #elif (CRYPTOPP_BOOL_PPC32 || CRYPTOPP_BOOL_PPC64)
 	const bool hasAltivec = HasAltivec();
@@ -410,8 +404,9 @@ bool TestSettings()
 	const bool hasSHA512 = HasSHA512();
 
 	std::cout << "passed:  ";
-	std::cout << "hasAltivec == " << hasAltivec << ", hasPower7 == " << hasPower7 << ", hasPower8 == " << hasPower8;
-	std::cout << ", hasAES == " << hasAES << ", hasSHA256 == " << hasSHA256 << ", hasSHA512 == " << hasSHA512 << "\n";
+	std::cout << "hasAltivec == " << hasAltivec << ", hasPower7 == " << hasPower7;
+	std::cout << ", hasPower8 == " << hasPower8 << ", hasAES == " << hasAES;
+	std::cout << ", hasSHA256 == " << hasSHA256 << ", hasSHA512 == " << hasSHA512 << "\n";
 
 #endif
 
