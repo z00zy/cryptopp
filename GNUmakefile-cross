@@ -32,10 +32,11 @@ endif
 
 IS_i686 := $(shell echo "$HOSTX" | $(EGREP) -v 64 | $(EGREP) -i -c 'i.86')
 IS_x86_64 := $(shell echo "$HOSTX" | $(EGREP) -i -c 'x86_64|amd64')
-IS_ARM := $(shell echo "$HOSTX" | $(EGREP) -i -c 'arm')
+IS_ARM32 := $(shell echo "$(HOSTX)" | $(EGREP) -i -c -E 'arm|armhf|arm7l|eabihf')
 IS_ARMv8 := $(shell echo "$HOSTX" | $(EGREP) -i -c 'aarch32|aarch64')
 
-CLANG_COMPILER := $(shell $(CXX) --version 2>&1 | $(EGREP) -i -c "clang")
+GCC_COMPILER := $(shell $(CXX) --version 2>/dev/null | $(EGREP) -v -E '(llvm|clang)' | $(EGREP) -i -c -E '(gcc|g\+\+)')
+CLANG_COMPILER := $(shell $(CXX) --version 2>/dev/null | $(EGREP) -i -c -E '(llvm|clang)')
 
 IS_IOS ?= 0
 IS_ANDROID ?= 0
@@ -44,12 +45,22 @@ IS_NEON ?= 0
 
 # Fixup ARM
 ifeq ($(IS_ARMv8),1)
-  IS_ARM := 0
+  IS_ARM32 := 0
 endif
 
 # Can be used by Android and Embeeded cross-compiles. Disable by default because
 #   Android and embedded users typically don't run this configuration.
 HAS_SOLIB_VERSION ?= 0
+
+# Formely adhoc.cpp was created from adhoc.cpp.proto when needed.
+# This is now needed because ISA tests are performed using adhoc.cpp.
+ifeq ($(wildcard adhoc.cpp),)
+$(shell cp adhoc.cpp.proto adhoc.cpp)
+endif
+
+###########################################################
+#####                General Variables                #####
+###########################################################
 
 # Default prefix for make install
 ifeq ($(PREFIX),)
@@ -82,6 +93,10 @@ ifneq ($(CLANG_COMPILER),0)
 CXXFLAGS += -Wall
 endif
 
+###########################################################
+#####                       iOS                       #####
+###########################################################
+
 # iOS cross-compile configuration.
 #   See http://www.cryptopp.com/wiki/iOS_(Command_Line).
 ifeq ($(IS_IOS),1)
@@ -94,6 +109,10 @@ ifeq ($(IS_IOS),1)
   ARFLAGS = -static -o
   RANLIB = ranlib
 endif
+
+###########################################################
+#####                     Android                     #####
+###########################################################
 
 # Android cross-compile configuration.
 #   See http://www.cryptopp.com/wiki/Android_(Command_Line).
@@ -116,6 +135,10 @@ ifeq ($(IS_ANDROID),1)
   AOSP_CPU_OBJ = cpu-features.o
 endif
 
+###########################################################
+#####                    Embedded                     #####
+###########################################################
+
 # ARM embedded cross-compile configuration.
 #   See http://www.cryptopp.com/wiki/ARM_Embedded_(Command_Line)
 #   and http://www.cryptopp.com/wiki/ARM_Embedded_(Bare Metal).
@@ -123,6 +146,10 @@ ifeq ($(IS_ARM_EMBEDDED),1)
   # CPP, CXX, AR, RANLIB, LD, etc are set in 'setenv-embedded.sh'
   CXXFLAGS += $(ARM_EMBEDDED_FLAGS) --sysroot=$(ARM_EMBEDDED_SYSROOT)
 endif
+
+###########################################################
+#####                      Common                     #####
+###########################################################
 
 # No ASM for Travis testing
 ifeq ($(findstring no-asm,$(MAKECMDGOALS)),no-asm)
@@ -178,7 +205,7 @@ endif # Valgrind
 # Debug testing on GNU systems. Triggered by -DDEBUG.
 #   Newlib test due to http://sourceware.org/bugzilla/show_bug.cgi?id=20268
 ifneq ($(filter -DDEBUG -DDEBUG=1,$(CXXFLAGS)),)
-  USING_GLIBCXX := $(shell $(CXX) -x c++ $(CXXFLAGS) -E adhoc.cpp.proto 2>&1 | $(EGREP) -i -c "__GLIBCXX__")
+  USING_GLIBCXX := $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -E adhoc.cpp 2>&1 | $(EGREP) -i -c "__GLIBCXX__")
   ifneq ($(USING_GLIBCXX),0)
     ifeq ($(HAS_NEWLIB),0)
       ifeq ($(findstring -D_GLIBCXX_DEBUG,$(CXXFLAGS)),)
@@ -208,12 +235,12 @@ ifeq ($(findstring lean,$(MAKECMDGOALS)),lean)
 endif # Dead code stripping
 
 # Pickup ARMv7 and NEON. Do it after Android, iOS and Embedded flags have been set.
-ifeq ($(IS_ARM),1)
-  IS_ARMv7 := $(shell echo | $(CXX) -x c++ $(CXXFLAGS) -dM -E - 2>/dev/null | $(EGREP) -i -c '__ARM_ARCH 7')
+ifeq ($(IS_ARM32),1)
+  IS_ARMv7 := $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -dM -E adhoc.cpp 2>&1 | $(EGREP) -i -c '__ARM_ARCH 7')
   ifeq ($(IS_ARMv7),1)
     IS_NEON := 1
   else
-    IS_NEON := $(shell echo | $(CXX) -x c++ $(CXXFLAGS) -dM -E - 2>/dev/null | $(EGREP) -i -c -E '\<__ARM_NEON\>')
+    IS_NEON := $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -dM -E adhoc.cpp 2>&1 | $(EGREP) -i -c -E '\<__ARM_NEON\>')
   endif
 endif
 
@@ -237,8 +264,10 @@ ifeq ($(IS_NEON),1)
     BLAKE2_FLAG += -mfpu=neon
     LEA_FLAG += -mfpu=neon
     SIMECK_FLAG += -mfpu=neon
-    SIMON_FLAG += -mfpu=neon
-    SPECK_FLAG += -mfpu=neon
+    SIMON64_FLAG += -mfpu=neon
+    SIMON128_FLAG += -mfpu=neon
+    SPECK64_FLAG += -mfpu=neon
+    SPECK128_FLAG += -mfpu=neon
     ifeq ($(IS_ANDROID),1)
       ifeq ($(findstring -mfloat-abi=softfp,$(CXXFLAGS)),)
         NEON_FLAG += -mfloat-abi=softfp
@@ -247,8 +276,10 @@ ifeq ($(IS_NEON),1)
         BLAKE2_FLAG += -mfloat-abi=softfp
         LEA_FLAG += -mfloat-abi=softfp
         SIMECK_FLAG += -mfloat-abi=softfp
-        SIMON_FLAG += -mfloat-abi=softfp
-        SPECK_FLAG += -mfloat-abi=softfp
+        SIMON64_FLAG += -mfloat-abi=softfp
+        SIMON128_FLAG += -mfloat-abi=softfp
+        SPECK64_FLAG += -mfloat-abi=softfp
+        SPECK128_FLAG += -mfloat-abi=softfp
       endif
     endif
   endif
@@ -256,76 +287,96 @@ endif
 
 # ARMv8-a
 ifneq ($(IS_ARMv8),0)
-  IS_NEON := $(shell echo | $(CXX) -x c++ $(CXXFLAGS) -march=armv8-a -dM -E - 2>/dev/null | $(EGREP) -i -c __ARM_NEON)
+  IS_NEON := $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -march=armv8-a -dM -E adhoc.cpp 2>&1 | $(EGREP) -i -c __ARM_NEON)
   ifeq ($(IS_NEON),1)
     ARIA_FLAG = -march=armv8-a
     BLAKE2_FLAG = -march=armv8-a
     LEA_FLAG = -march=armv8-a
     NEON_FLAG = -march=armv8-a
     SIMECK_FLAG = -march=armv8-a
-    SIMON_FLAG = -march=armv8-a
-    SPECK_FLAG = -march=armv8-a
+    SIMON64_FLAG = -march=armv8-a
+    SIMON128_FLAG = -march=armv8-a
+    SPECK64_FLAG = -march=armv8-a
+    SPECK128_FLAG = -march=armv8-a
   endif
-  HAVE_CRC := $(shell echo | $(CXX) -x c++ $(CXXFLAGS) -march=armv8-a+crc -dM -E - 2>/dev/null | $(EGREP) -i -c __ARM_FEATURE_CRC32)
+  HAVE_CRC := $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -march=armv8-a+crc -dM -E adhoc.cpp 2>&1 | $(EGREP) -i -c __ARM_FEATURE_CRC32)
   ifeq ($(HAVE_CRC),1)
     CRC_FLAG = -march=armv8-a+crc
   endif
-  HAVE_CRYPTO := $(shell echo | $(CXX) -x c++ $(CXXFLAGS) -march=armv8-a+crypto -dM -E - 2>/dev/null | $(EGREP) -i -c __ARM_FEATURE_CRYPTO)
+  HAVE_CRYPTO := $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -march=armv8-a+crypto -dM -E adhoc.cpp 2>&1 | $(EGREP) -i -c __ARM_FEATURE_CRYPTO)
   ifeq ($(HAVE_CRYPTO),1)
     AES_FLAG = -march=armv8-a+crypto
     GCM_FLAG = -march=armv8-a+crypto
     SHA_FLAG = -march=armv8-a+crypto
   endif
+  HAVE_CRYPTO := $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -march=armv8.4-a+crypto -dM -E adhoc.cpp 2>&1 | $(EGREP) -i -c __ARM_FEATURE_CRYPTO)
+  ifeq ($(HAVE_CRYPTO),1)
+    SM4_FLAG = -march=armv8.4-a+crypto
+  endif
 endif
 
 # i686 and x86_64
 ifneq ($(IS_i686)$(IS_x86_64),00)
-  HAVE_SSSE3 = $(shell echo | $(CXX) -x c++ $(CXXFLAGS) -mssse3 -dM -E - 2>/dev/null | $(EGREP) -i -c __SSSE3__)
+  HAVE_SSSE3 = $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -mssse3 -dM -E adhoc.cpp 2>&1 |  $(EGREP) -i -c __SSSE3__)
   ifeq ($(HAVE_SSSE3),1)
     ARIA_FLAG = -mssse3
     CHAM_FLAG = -mssse3
     LEA_FLAG = -mssse3
     SSSE3_FLAG = -mssse3
     SIMECK_FLAG = -mssse3
-    SIMON_FLAG = -mssse3
-    SPECK_FLAG = -mssse3
+    SIMON128_FLAG = -mssse3
+    SPECK128_FLAG = -mssse3
   endif
-  HAVE_SSE4 = $(shell echo | $(CXX) -x c++ $(CXXFLAGS) -msse4.1 -dM -E - 2>/dev/null | $(EGREP) -i -c __SSE4_1__)
+  HAVE_SSE4 = $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -msse4.1 -dM -E adhoc.cpp 2>&1 | $(EGREP) -i -c __SSE4_1__)
   ifeq ($(HAVE_SSE4),1)
-    SIMON_FLAG = -msse4.1
-    SPECK_FLAG = -msse4.1
+    SIMON64_FLAG = -msse4.1
+    SPECK64_FLAG = -msse4.1
   endif
-  HAVE_SSE4 = $(shell echo | $(CXX) -x c++ $(CXXFLAGS) -msse4.2 -dM -E - 2>/dev/null | $(EGREP) -i -c __SSE4_2__)
+  HAVE_SSE4 = $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -msse4.2 -dM -E adhoc.cpp 2>&1 | $(EGREP) -i -c __SSE4_2__)
   ifeq ($(HAVE_SSE4),1)
     BLAKE2_FLAG = -msse4.2
     CRC_FLAG = -msse4.2
   endif
-  HAVE_CLMUL = $(shell echo | $(CXX) -x c++ $(CXXFLAGS) -mssse3 -mpclmul -dM -E - 2>/dev/null | $(EGREP) -i -c __PCLMUL__ )
+  HAVE_CLMUL = $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -mssse3 -mpclmul -dM -E adhoc.cpp 2>&1 | $(EGREP) -i -c __PCLMUL__ )
   ifeq ($(HAVE_CLMUL),1)
     GCM_FLAG = -mssse3 -mpclmul
   endif
-  HAVE_AES = $(shell echo | $(CXX) -x c++ $(CXXFLAGS) -msse4.1 -maes -dM -E - 2>/dev/null | $(EGREP) -i -c __AES__)
+  HAVE_AES = $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -msse4.1 -maes -dM -E adhoc.cpp 2>&1 | $(EGREP) -i -c __AES__)
   ifeq ($(HAVE_AES),1)
     AES_FLAG = -msse4.1 -maes
+    SM4_FLAG = -mssse3 -maes
   endif
-  HAVE_SHA = $(shell echo | $(CXX) -x c++ $(CXXFLAGS) -msse4.2 -msha -dM -E - 2>/dev/null | $(EGREP) -i -c __SHA__)
+  HAVE_SHA = $(shell $(CXX) $(CXXFLAGS) -DADHOC_MAIN -msse4.2 -msha -dM -E adhoc.cpp 2>&1 | $(EGREP) -i -c __SHA__)
   ifeq ($(HAVE_SHA),1)
     SHA_FLAG = -msse4.2 -msha
   endif
 endif
 
+###########################################################
+#####              Source and object files            #####
+###########################################################
+
 # List cryptlib.cpp first, then cpu.cpp, then integer.cpp to tame C++ static initialization problems.
 SRCS := cryptlib.cpp cpu.cpp integer.cpp $(filter-out cryptlib.cpp cpu.cpp integer.cpp pch.cpp simple.cpp winpipes.cpp cryptlib_bds.cpp,$(sort $(wildcard *.cpp)))
-
 # For Makefile.am; resource.h is Windows
 INCL := $(filter-out resource.h,$(sort $(wildcard *.h)))
 
+# Cryptogams AES for ARMv4 and above. We couple to ARMv7.
+ifeq ($(IS_ARM32),1)
+CRYPTOGAMS_AES_FLAG = -march=armv7-a
+CRYPTOGAMS_AES_FLAG += -Wa,--noexecstack
+SRCS += aes-armv4.S
+endif
+
 # List cryptlib.cpp first, then cpu.cpp, then integer.cpp to tame C++ static initialization problems.
 OBJS := $(SRCS:.cpp=.o)
+OBJS := $(OBJS:.S=.o)
 
 # List test.cpp first to tame C++ static initialization problems.
-TESTSRCS := adhoc.cpp test.cpp bench1.cpp bench2.cpp validat0.cpp validat1.cpp validat2.cpp validat3.cpp validat4.cpp datatest.cpp regtest1.cpp regtest2.cpp regtest3.cpp fipsalgt.cpp dlltest.cpp
+TESTSRCS := adhoc.cpp test.cpp bench1.cpp bench2.cpp bench3.cpp datatest.cpp dlltest.cpp fipsalgt.cpp validat0.cpp validat1.cpp validat2.cpp validat3.cpp validat4.cpp validat5.cpp validat6.cpp validat7.cpp validat8.cpp validat9.cpp validat10.cpp regtest1.cpp regtest2.cpp regtest3.cpp regtest4.cpp
 TESTINCL := bench.h factory.h validate.h
+
+# Test objects
 TESTOBJS := $(TESTSRCS:.cpp=.o)
 LIBOBJS := $(filter-out $(TESTOBJS),$(OBJS))
 
@@ -347,11 +398,15 @@ SOLIB_COMPAT_SUFFIX=.$(LIB_MAJOR)
 SOLIB_FLAGS=-Wl,-soname,libcryptopp.so$(SOLIB_COMPAT_SUFFIX)
 endif # HAS_SOLIB_VERSION
 
+###########################################################
+#####                Targets and Recipes              #####
+###########################################################
+
 # Default builds program with static library only
 .PHONY: default
 default: cryptest.exe
 
-.PHONY: all
+.PHONY: all static dynamic
 all: static dynamic cryptest.exe
 
 ifneq ($(IS_IOS),0)
@@ -373,10 +428,10 @@ lean: static dynamic cryptest.exe
 
 .PHONY: clean
 clean:
-	-$(RM) adhoc.cpp.o adhoc.cpp.proto.o $(LIBOBJS) $(AOSP_CPU_OBJ) $(TESTOBJS) $(DLLOBJS) $(LIBIMPORTOBJS) $(TESTIMPORTOBJS) $(DLLTESTOBJS)
+	-$(RM) adhoc.cpp.o adhoc.cpp.proto.o $(LIBOBJS) $(AOSP_CPU_OBJ) rdrand-*.o $(TESTOBJS) $(DLLOBJS) $(LIBIMPORTOBJS) $(TESTIMPORTOBJS) $(DLLTESTOBJS)
 	@-$(RM) libcryptopp.a libcryptopp.dylib cryptopp.dll libcryptopp.dll.a libcryptopp.import.a
 	@-$(RM) libcryptopp.so libcryptopp.so$(SOLIB_COMPAT_SUFFIX) libcryptopp.so$(SOLIB_VERSION_SUFFIX)
-	@-$(RM) cryptest.exe dlltest.exe cryptest.import.exe cryptest.info ct rdrand-???.o
+	@-$(RM) cryptest.exe dlltest.exe cryptest.import.exe cryptest.info ct et
 	@-$(RM) *.la *.lo *.gcov *.gcno *.gcda *.stackdump core core-*
 	@-$(RM) /tmp/adhoc.exe
 	@-$(RM) -r /tmp/cryptopp_test/
@@ -384,18 +439,28 @@ clean:
 	@-$(RM) -r *.dylib.dSYM/
 	@-$(RM) -r cov-int/
 
-.PHONY: distclean
-distclean: clean
-	-$(RM) adhoc.cpp adhoc.cpp.copied GNUmakefile.deps benchmarks.html cryptest.txt cryptest-*.txt
-	@-$(RM) cryptopp.tgz *.o *.bc *.ii *~
-	@-$(RM) -r $(SRCS:.cpp=.obj) cryptlib.lib cryptest.exe *.suo *.sdf *.pdb Win32/ x64/ ipch/
+.PHONY: autotools-clean
+autotools-clean:
 	@-$(RM) -f configure.ac configure configure.in Makefile.am Makefile.in Makefile
-	@-$(RM) -f config.guess config.status config.sub depcomp install-sh compile
-	@-$(RM) -f stamp-h1 ar-lib *.m4 local.* lt*.sh missing libtool* libcryptopp.pc*
+	@-$(RM) -f config.guess config.status config.sub config.h.in compile depcomp
+	@-$(RM) -f install-sh stamp-h1 ar-lib *.lo *.la *.m4 local.* lt*.sh missing
+	@-$(RM) -f cryptest cryptestcwd libtool* libcryptopp.la libcryptopp.pc*
 	@-$(RM) -rf m4/ auto*.cache/ .deps/ .libs/
-	@-$(RM) -r TestCoverage/
-	@-$(RM) cryptopp$(LIB_VER)\.*
-	@-$(RM) CryptoPPRef.zip
+
+.PHONY: cmake-clean
+cmake-clean:
+	@-$(RM) -f cryptopp-config.cmake CMakeLists.txt
+	@-$(RM) -rf cmake_build/
+
+.PHONY: distclean
+distclean: clean autotools-clean cmake-clean
+	-$(RM) adhoc.cpp adhoc.cpp.copied GNUmakefile.deps benchmarks.html cryptest.txt
+	@-$(RM) cryptest-*.txt cryptopp.tgz libcryptopp.pc *.o *.bc *.ii *~
+	@-$(RM) -r cryptlib.lib cryptest.exe *.suo *.sdf *.pdb Win32/ x64/ ipch/
+	@-$(RM) -r $(LIBOBJS:.o=.obj) $(TESTOBJS:.o=.obj)
+	@-$(RM) -r $(LIBOBJS:.o=.lst) $(TESTOBJS:.o=.lst)
+	@-$(RM) -r TestCoverage/ ref*/
+	@-$(RM) cryptopp$(LIB_VER)\.* CryptoPPRef.zip
 
 # Install cryptest.exe, libcryptopp.a and libcryptopp.so.
 # The library install was broken-out into its own recipe at GH #653.
@@ -466,13 +531,17 @@ cryptest.exe: libcryptopp.a $(TESTOBJS)
 # Used to generate list of source files for Autotools, CMakeList and Android.mk
 .PHONY: sources
 sources:
-	$(info Library sources: $(filter-out $(TESTSRCS),$(SRCS)))
+	$(info ***** Library sources *****)
+	$(info $(filter-out $(TESTSRCS),$(SRCS)))
 	$(info )
-	$(info Library headers: $(filter-out $(TESTINCL),$(INCL)))
+	$(info ***** Library headers *****)
+	$(info $(filter-out $(TESTINCL),$(INCL)))
 	$(info )
-	$(info Test sources: $(TESTSRCS))
+	$(info ***** Test sources *****)
+	$(info $(TESTSRCS))
 	$(info )
-	$(info Test headers: $(TESTINCL))
+	$(info ***** Test headers *****)
+	$(info $(TESTINCL))
 
 adhoc.cpp: adhoc.cpp.proto
 ifeq ($(wildcard adhoc.cpp),)
@@ -488,6 +557,10 @@ endif # Dependencies
 
 cpu-features.o: cpu-features.h cpu-features.c
 	$(CXX) $(strip $(CXXFLAGS) -fpermissive -c) cpu-features.c
+
+# Cryptogams ARM asm implementation.
+aes-armv4.o : aes-armv4.S
+	$(CXX) $(strip $(CXXFLAGS) $(CRYPTOGAMS_AES_FLAG) -c) $<
 
 # SSE4.2 or NEON available
 aria-simd.o : aria-simd.cpp
@@ -537,13 +610,25 @@ shacal2-simd.o : shacal2-simd.cpp
 simeck-simd.o : simeck-simd.cpp
 	$(CXX) $(strip $(CXXFLAGS) $(SIMECK_FLAG) -c) $<
 
-# SSSE3 or NEON available
-simon-simd.o : simon-simd.cpp
-	$(CXX) $(strip $(CXXFLAGS) $(SIMON_FLAG) -c) $<
+# SSE4.1, NEON or POWER7 available
+simon64-simd.o : simon64-simd.cpp
+	$(CXX) $(strip $(CXXFLAGS) $(SIMON64_FLAG) -c) $<
 
-# SSSE3 or NEON available
-speck-simd.o : speck-simd.cpp
-	$(CXX) $(strip $(CXXFLAGS) $(SPECK_FLAG) -c) $<
+# SSSE3, NEON or POWER8 available
+simon128-simd.o : simon128-simd.cpp
+	$(CXX) $(strip $(CXXFLAGS) $(SIMON128_FLAG) -c) $<
+
+# SSE4.1, NEON or POWER7 available
+speck64-simd.o : speck64-simd.cpp
+	$(CXX) $(strip $(CXXFLAGS) $(SPECK64_FLAG) -c) $<
+
+# SSSE3, NEON or POWER8 available
+speck128-simd.o : speck128-simd.cpp
+	$(CXX) $(strip $(CXXFLAGS) $(SPECK128_FLAG) -c) $<
+
+# AESNI available
+sm4-simd.o : sm4-simd.cpp
+	$(CXX) $(strip $(CXXFLAGS) $(SM4_FLAG) -c) $<
 
 %.o : %.cpp
 	$(CXX) $(strip $(CXXFLAGS) -c) $<

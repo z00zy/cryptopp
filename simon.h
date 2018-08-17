@@ -17,12 +17,23 @@
 #include "seckey.h"
 #include "secblock.h"
 
-#if CRYPTOPP_BOOL_X64 || CRYPTOPP_BOOL_X32 || CRYPTOPP_BOOL_X86 || CRYPTOPP_BOOL_ARM32 || CRYPTOPP_BOOL_ARM64
+#if CRYPTOPP_BOOL_X64 || CRYPTOPP_BOOL_X32 || CRYPTOPP_BOOL_X86 || \
+    CRYPTOPP_BOOL_ARM32 || CRYPTOPP_BOOL_ARM64 || \
+    CRYPTOPP_BOOL_PPC32 || CRYPTOPP_BOOL_PPC64
 # define CRYPTOPP_SIMON64_ADVANCED_PROCESS_BLOCKS 1
 #endif
 
-#if CRYPTOPP_BOOL_X64 || CRYPTOPP_BOOL_X32 || CRYPTOPP_BOOL_X86 || CRYPTOPP_BOOL_ARM32 || CRYPTOPP_BOOL_ARM64
+#if CRYPTOPP_BOOL_X64 || CRYPTOPP_BOOL_X32 || CRYPTOPP_BOOL_X86 || \
+    CRYPTOPP_BOOL_ARM32 || CRYPTOPP_BOOL_ARM64 || \
+    CRYPTOPP_BOOL_PPC32 || CRYPTOPP_BOOL_PPC64
 # define CRYPTOPP_SIMON128_ADVANCED_PROCESS_BLOCKS 1
+#endif
+
+// Yet another SunStudio/SunCC workaround. Failed self tests
+// in SSE code paths on i386 for SunStudio 12.3 and below.
+#if defined(__SUNPRO_CC)
+# undef CRYPTOPP_SIMON64_ADVANCED_PROCESS_BLOCKS
+# undef CRYPTOPP_SIMON128_ADVANCED_PROCESS_BLOCKS
 #endif
 
 NAMESPACE_BEGIN(CryptoPP)
@@ -52,7 +63,7 @@ template <class W>
 struct SIMON_Base
 {
     virtual ~SIMON_Base() {}
-SIMON_Base() : m_kwords(0), m_rounds(0) {}
+    SIMON_Base() : m_kwords(0), m_rounds(0) {}
 
     typedef SecBlock<W, AllocatorWithCleanup<W, true> > AlignedSecBlock;
     mutable AlignedSecBlock m_wspace;  // workspace
@@ -90,7 +101,7 @@ public:
         void UncheckedSetKey(const byte *userKey, unsigned int keyLength, const NameValuePairs &params);
     };
 
-    /// \brief Provides implementation for encryption transformation
+    /// \brief Encryption transformation
     /// \details Enc provides implementation for encryption transformation. All key
     ///   sizes are supported.
     /// \since Crypto++ 6.0
@@ -103,7 +114,7 @@ public:
 #endif
     };
 
-    /// \brief Provides implementation for encryption transformation
+    /// \brief Encryption transformation
     /// \details Dec provides implementation for decryption transformation. All key
     ///   sizes are supported.
     /// \since Crypto++ 6.0
@@ -149,7 +160,7 @@ public:
         void UncheckedSetKey(const byte *userKey, unsigned int keyLength, const NameValuePairs &params);
     };
 
-    /// \brief Provides implementation for encryption transformation
+    /// \brief Encryption transformation
     /// \details Enc provides implementation for encryption transformation. All key
     ///   sizes are supported.
     /// \since Crypto++ 6.0
@@ -162,7 +173,7 @@ public:
 #endif
     };
 
-    /// \brief Provides implementation for encryption transformation
+    /// \brief Encryption transformation
     /// \details Dec provides implementation for decryption transformation. All key
     ///   sizes are supported.
     /// \since Crypto++ 6.0

@@ -16,13 +16,10 @@
 # include <immintrin.h>
 #endif
 
-// Use ARMv8 rather than NEON due to compiler inconsistencies
-#if (CRYPTOPP_ARM_SHA_AVAILABLE)
+#if (CRYPTOPP_ARM_NEON_AVAILABLE)
 # include <arm_neon.h>
 #endif
 
-// Can't use CRYPTOPP_ARM_XXX_AVAILABLE because too many
-// compilers don't follow ACLE conventions for the include.
 #if defined(CRYPTOPP_ARM_ACLE_AVAILABLE)
 # include <stdint.h>
 # include <arm_acle.h>
@@ -69,7 +66,7 @@ bool CPU_ProbeSHA1()
 {
 #if defined(CRYPTOPP_NO_CPU_FEATURE_PROBES)
     return false;
-#elif (CRYPTOPP_ARM_SHA_AVAILABLE)
+#elif (CRYPTOPP_ARM_SHA1_AVAILABLE)
 # if defined(CRYPTOPP_MS_STYLE_INLINE_ASSEMBLY)
     volatile bool result = true;
     __try
@@ -124,14 +121,14 @@ bool CPU_ProbeSHA1()
 # endif
 #else
     return false;
-#endif  // CRYPTOPP_ARM_SHA_AVAILABLE
+#endif  // CRYPTOPP_ARM_SHA1_AVAILABLE
 }
 
 bool CPU_ProbeSHA2()
 {
 #if defined(CRYPTOPP_NO_CPU_FEATURE_PROBES)
     return false;
-#elif (CRYPTOPP_ARM_SHA_AVAILABLE)
+#elif (CRYPTOPP_ARM_SHA2_AVAILABLE)
 # if defined(CRYPTOPP_MS_STYLE_INLINE_ASSEMBLY)
     volatile bool result = true;
     __try
@@ -184,13 +181,103 @@ bool CPU_ProbeSHA2()
 # endif
 #else
     return false;
-#endif  // CRYPTOPP_ARM_SHA_AVAILABLE
+#endif  // CRYPTOPP_ARM_SHA2_AVAILABLE
 }
 #endif  // ARM32 or ARM64
 
+#if (CRYPTOPP_BOOL_PPC32 || CRYPTOPP_BOOL_PPC64)
+bool CPU_ProbeSHA256()
+{
+#if defined(CRYPTOPP_NO_CPU_FEATURE_PROBES)
+    return false;
+#elif (CRYPTOPP_POWER8_AVAILABLE)
+# if defined(CRYPTOPP_GNU_STYLE_INLINE_ASSEMBLY)
+
+    // longjmp and clobber warnings. Volatile is required.
+    // http://github.com/weidai11/cryptopp/issues/24 and http://stackoverflow.com/q/7721854
+    volatile int result = false;
+
+    volatile SigHandler oldHandler = signal(SIGILL, SigIllHandler);
+    if (oldHandler == SIG_ERR)
+        return false;
+
+    volatile sigset_t oldMask;
+    if (sigprocmask(0, NULLPTR, (sigset_t*)&oldMask))
+        return false;
+
+    if (setjmp(s_jmpSIGILL))
+        result = false;
+    else
+    {
+        byte r[16], z[16] = {0};
+        uint8x16_p x = ((uint8x16_p){0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0});
+
+        x = VectorSHA256<0,0>(x);
+        x = VectorSHA256<0,1>(x);
+        x = VectorSHA256<1,0>(x);
+        x = VectorSHA256<1,1>(x);
+        VectorStore(x, r);
+
+        result = (0 == std::memcmp(r, z, 16));
+    }
+
+    sigprocmask(SIG_SETMASK, (sigset_t*)&oldMask, NULLPTR);
+    signal(SIGILL, oldHandler);
+    return result;
+# endif
+#else
+    return false;
+#endif  // CRYPTOPP_ALTIVEC_AVAILABLE
+}
+
+bool CPU_ProbeSHA512()
+{
+#if defined(CRYPTOPP_NO_CPU_FEATURE_PROBES)
+    return false;
+#elif (CRYPTOPP_POWER8_AVAILABLE)
+# if defined(CRYPTOPP_GNU_STYLE_INLINE_ASSEMBLY)
+
+    // longjmp and clobber warnings. Volatile is required.
+    // http://github.com/weidai11/cryptopp/issues/24 and http://stackoverflow.com/q/7721854
+    volatile int result = false;
+
+    volatile SigHandler oldHandler = signal(SIGILL, SigIllHandler);
+    if (oldHandler == SIG_ERR)
+        return false;
+
+    volatile sigset_t oldMask;
+    if (sigprocmask(0, NULLPTR, (sigset_t*)&oldMask))
+        return false;
+
+    if (setjmp(s_jmpSIGILL))
+        result = false;
+    else
+    {
+        byte r[16], z[16] = {0};
+        uint8x16_p x = ((uint8x16_p){0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0});
+
+        x = VectorSHA512<0,0>(x);
+        x = VectorSHA512<0,1>(x);
+        x = VectorSHA512<1,0>(x);
+        x = VectorSHA512<1,1>(x);
+        VectorStore(x, r);
+
+        result = (0 == std::memcmp(r, z, 16));
+    }
+
+    sigprocmask(SIG_SETMASK, (sigset_t*)&oldMask, NULLPTR);
+    signal(SIGILL, oldHandler);
+    return result;
+# endif
+#else
+    return false;
+#endif  // CRYPTOPP_POWER8_AVAILABLE
+}
+#endif  // PPC32 or PPC64
+
 // ***************** Intel x86 SHA ********************
 
-// provided by sha.cpp
+// provided by sha.cpp, 16-byte aigned
 extern const word32 SHA256_K[64];
 extern const word64 SHA512_K[80];
 
@@ -612,7 +699,7 @@ void SHA256_HashMultipleBlocks_SHANI(word32 *state, const word32 *data, size_t l
 // start of Walton, Schneiders, O'Rourke and Hovsmith code //
 /////////////////////////////////////////////////////////////
 
-#if CRYPTOPP_ARM_SHA_AVAILABLE
+#if CRYPTOPP_ARM_SHA1_AVAILABLE
 void SHA1_HashMultipleBlocks_ARMV8(word32 *state, const word32 *data, size_t length, ByteOrder order)
 {
     CRYPTOPP_ASSERT(state);
@@ -799,7 +886,9 @@ void SHA1_HashMultipleBlocks_ARMV8(word32 *state, const word32 *data, size_t len
     vst1q_u32(&state[0], ABCD);
     state[4] = E0;
 }
+#endif  // CRYPTOPP_ARM_SHA1_AVAILABLE
 
+#if CRYPTOPP_ARM_SHA2_AVAILABLE
 void SHA256_HashMultipleBlocks_ARMV8(word32 *state, const word32 *data, size_t length, ByteOrder order)
 {
     CRYPTOPP_ASSERT(state);
@@ -967,7 +1056,7 @@ void SHA256_HashMultipleBlocks_ARMV8(word32 *state, const word32 *data, size_t l
     vst1q_u32(&state[0], STATE0);
     vst1q_u32(&state[4], STATE1);
 }
-#endif  // CRYPTOPP_ARM_SHA_AVAILABLE
+#endif  // CRYPTOPP_ARM_SHA2_AVAILABLE
 
 ///////////////////////////////////////////////////////////
 // end of Walton, Schneiders, O'Rourke and Hovsmith code //
@@ -988,46 +1077,19 @@ typedef __vector unsigned char      uint8x16_p8;
 typedef __vector unsigned int       uint32x4_p8;
 typedef __vector unsigned long long uint64x2_p8;
 
-uint32x4_p8 VEC_XL_BE(int offset, const uint8_t* data)
-{
-#if defined(CRYPTOPP_XLC_VERSION)
-    return vec_xl_be(offset, data);
-#else
-    uint32x4_p8 res;
-    __asm(" lxvd2x  %x0, %1, %2    \n\t"
-          : "=wa" (res)
-          : "b" (data), "r" (offset));
-    return res;
-#endif
-}
-
 #endif  // CRYPTOPP_POWER8_SHA_AVAILABLE
 
 #if CRYPTOPP_POWER8_SHA_AVAILABLE
-
-// Aligned load
-template <class T> static inline
-uint32x4_p8 VectorLoad32x4(const T* data, int offset)
-{
-    return (uint32x4_p8)vec_ld(offset, data);
-}
 
 // Unaligned load
 template <class T> static inline
 uint32x4_p8 VectorLoad32x4u(const T* data, int offset)
 {
 #if defined(CRYPTOPP_XLC_VERSION)
-    return (uint32x4_p8)vec_xl(offset, data);
+    return (uint32x4_p8)vec_xl(offset, (uint8_t*)data);
 #else
     return (uint32x4_p8)vec_vsx_ld(offset, data);
 #endif
-}
-
-// Aligned store
-template <class T> static inline
-void VectorStore32x4(const uint32x4_p8 val, T* data, int offset)
-{
-    vec_st((uint8x16_p8)val, offset, data);
 }
 
 // Unaligned store
@@ -1197,7 +1259,7 @@ void SHA256_HashMultipleBlocks_POWER8(word32 *state, const word32 *data, size_t 
         // Unroll the loop to provide the round number as a constexpr
         // for (unsigned int i=0; i<16; ++i)
         {
-            vk = VectorLoad32x4(k, offset);
+            vk = VectorLoad32x4u(k, offset);
             vm = VectorLoadMsg32x4(m, offset);
             SHA256_ROUND1<0>(W,S, vk,vm);
             offset+=16;
@@ -1214,7 +1276,7 @@ void SHA256_HashMultipleBlocks_POWER8(word32 *state, const word32 *data, size_t 
             vm = VectorShiftLeft<4>(vm);
             SHA256_ROUND1<3>(W,S, vk,vm);
 
-            vk = VectorLoad32x4(k, offset);
+            vk = VectorLoad32x4u(k, offset);
             vm = VectorLoadMsg32x4(m, offset);
             SHA256_ROUND1<4>(W,S, vk,vm);
             offset+=16;
@@ -1231,7 +1293,7 @@ void SHA256_HashMultipleBlocks_POWER8(word32 *state, const word32 *data, size_t 
             vm = VectorShiftLeft<4>(vm);
             SHA256_ROUND1<7>(W,S, vk,vm);
 
-            vk = VectorLoad32x4(k, offset);
+            vk = VectorLoad32x4u(k, offset);
             vm = VectorLoadMsg32x4(m, offset);
             SHA256_ROUND1<8>(W,S, vk,vm);
             offset+=16;
@@ -1248,7 +1310,7 @@ void SHA256_HashMultipleBlocks_POWER8(word32 *state, const word32 *data, size_t 
             vm = VectorShiftLeft<4>(vm);
             SHA256_ROUND1<11>(W,S, vk,vm);
 
-            vk = VectorLoad32x4(k, offset);
+            vk = VectorLoad32x4u(k, offset);
             vm = VectorLoadMsg32x4(m, offset);
             SHA256_ROUND1<12>(W,S, vk,vm);
             offset+=16;
@@ -1270,28 +1332,28 @@ void SHA256_HashMultipleBlocks_POWER8(word32 *state, const word32 *data, size_t 
 
         for (i=16; i<64; i+=16)
         {
-            vk = VectorLoad32x4(k, offset);
+            vk = VectorLoad32x4u(k, offset);
             SHA256_ROUND2<0>(W,S, vk);
             SHA256_ROUND2<1>(W,S, VectorShiftLeft<4>(vk));
             SHA256_ROUND2<2>(W,S, VectorShiftLeft<8>(vk));
             SHA256_ROUND2<3>(W,S, VectorShiftLeft<12>(vk));
             offset+=16;
 
-            vk = VectorLoad32x4(k, offset);
+            vk = VectorLoad32x4u(k, offset);
             SHA256_ROUND2<4>(W,S, vk);
             SHA256_ROUND2<5>(W,S, VectorShiftLeft<4>(vk));
             SHA256_ROUND2<6>(W,S, VectorShiftLeft<8>(vk));
             SHA256_ROUND2<7>(W,S, VectorShiftLeft<12>(vk));
             offset+=16;
 
-            vk = VectorLoad32x4(k, offset);
+            vk = VectorLoad32x4u(k, offset);
             SHA256_ROUND2<8>(W,S, vk);
             SHA256_ROUND2<9>(W,S, VectorShiftLeft<4>(vk));
             SHA256_ROUND2<10>(W,S, VectorShiftLeft<8>(vk));
             SHA256_ROUND2<11>(W,S, VectorShiftLeft<12>(vk));
             offset+=16;
 
-            vk = VectorLoad32x4(k, offset);
+            vk = VectorLoad32x4u(k, offset);
             SHA256_ROUND2<12>(W,S, vk);
             SHA256_ROUND2<13>(W,S, VectorShiftLeft<4>(vk));
             SHA256_ROUND2<14>(W,S, VectorShiftLeft<8>(vk));
@@ -1313,29 +1375,15 @@ uint64x2_p8 VectorPermute64x2(const uint64x2_p8 val, const uint8x16_p8 mask)
     return (uint64x2_p8)vec_perm(val, val, mask);
 }
 
-// Aligned load
-template <class T> static inline
-uint64x2_p8 VectorLoad64x2(const T* data, int offset)
-{
-    return (uint64x2_p8)vec_ld(offset, (const uint8_t*)data);
-}
-
 // Unaligned load
 template <class T> static inline
 uint64x2_p8 VectorLoad64x2u(const T* data, int offset)
 {
 #if defined(CRYPTOPP_XLC_VERSION)
-    return (uint64x2_p8)vec_xl(offset, (const uint8_t*)data);
+    return (uint64x2_p8)vec_xl(offset, (uint8_t*)data);
 #else
     return (uint64x2_p8)vec_vsx_ld(offset, (const uint8_t*)data);
 #endif
-}
-
-// Aligned store
-template <class T> static inline
-void VectorStore64x2(const uint64x2_p8 val, T* data, int offset)
-{
-    vec_st((uint8x16_p8)val, offset, (uint8_t*)data);
 }
 
 // Unaligned store
@@ -1503,7 +1551,7 @@ void SHA512_HashMultipleBlocks_POWER8(word64 *state, const word64 *data, size_t 
         // Unroll the loop to provide the round number as a constexpr
         // for (unsigned int i=0; i<16; ++i)
         {
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             vm = VectorLoadMsg64x2(m, offset);
             SHA512_ROUND1<0>(W,S, vk,vm);
             offset+=16;
@@ -1512,7 +1560,7 @@ void SHA512_HashMultipleBlocks_POWER8(word64 *state, const word64 *data, size_t 
             vm = VectorShiftLeft<8>(vm);
             SHA512_ROUND1<1>(W,S, vk,vm);
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             vm = VectorLoadMsg64x2(m, offset);
             SHA512_ROUND1<2>(W,S, vk,vm);
             offset+=16;
@@ -1521,7 +1569,7 @@ void SHA512_HashMultipleBlocks_POWER8(word64 *state, const word64 *data, size_t 
             vm = VectorShiftLeft<8>(vm);
             SHA512_ROUND1<3>(W,S, vk,vm);
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             vm = VectorLoadMsg64x2(m, offset);
             SHA512_ROUND1<4>(W,S, vk,vm);
             offset+=16;
@@ -1530,7 +1578,7 @@ void SHA512_HashMultipleBlocks_POWER8(word64 *state, const word64 *data, size_t 
             vm = VectorShiftLeft<8>(vm);
             SHA512_ROUND1<5>(W,S, vk,vm);
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             vm = VectorLoadMsg64x2(m, offset);
             SHA512_ROUND1<6>(W,S, vk,vm);
             offset+=16;
@@ -1539,7 +1587,7 @@ void SHA512_HashMultipleBlocks_POWER8(word64 *state, const word64 *data, size_t 
             vm = VectorShiftLeft<8>(vm);
             SHA512_ROUND1<7>(W,S, vk,vm);
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             vm = VectorLoadMsg64x2(m, offset);
             SHA512_ROUND1<8>(W,S, vk,vm);
             offset+=16;
@@ -1548,7 +1596,7 @@ void SHA512_HashMultipleBlocks_POWER8(word64 *state, const word64 *data, size_t 
             vm = VectorShiftLeft<8>(vm);
             SHA512_ROUND1<9>(W,S, vk,vm);
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             vm = VectorLoadMsg64x2(m, offset);
             SHA512_ROUND1<10>(W,S, vk,vm);
             offset+=16;
@@ -1557,7 +1605,7 @@ void SHA512_HashMultipleBlocks_POWER8(word64 *state, const word64 *data, size_t 
             vm = VectorShiftLeft<8>(vm);
             SHA512_ROUND1<11>(W,S, vk,vm);
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             vm = VectorLoadMsg64x2(m, offset);
             SHA512_ROUND1<12>(W,S, vk,vm);
             offset+=16;
@@ -1566,7 +1614,7 @@ void SHA512_HashMultipleBlocks_POWER8(word64 *state, const word64 *data, size_t 
             vm = VectorShiftLeft<8>(vm);
             SHA512_ROUND1<13>(W,S, vk,vm);
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             vm = VectorLoadMsg64x2(m, offset);
             SHA512_ROUND1<14>(W,S, vk,vm);
             offset+=16;
@@ -1580,42 +1628,42 @@ void SHA512_HashMultipleBlocks_POWER8(word64 *state, const word64 *data, size_t 
 
         for (i=16 ; i<80; i+=16)
         {
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             SHA512_ROUND2<0>(W,S, vk);
             SHA512_ROUND2<1>(W,S, VectorShiftLeft<8>(vk));
             offset+=16;
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             SHA512_ROUND2<2>(W,S, vk);
             SHA512_ROUND2<3>(W,S, VectorShiftLeft<8>(vk));
             offset+=16;
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             SHA512_ROUND2<4>(W,S, vk);
             SHA512_ROUND2<5>(W,S, VectorShiftLeft<8>(vk));
             offset+=16;
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             SHA512_ROUND2<6>(W,S, vk);
             SHA512_ROUND2<7>(W,S, VectorShiftLeft<8>(vk));
             offset+=16;
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             SHA512_ROUND2<8>(W,S, vk);
             SHA512_ROUND2<9>(W,S, VectorShiftLeft<8>(vk));
             offset+=16;
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             SHA512_ROUND2<10>(W,S, vk);
             SHA512_ROUND2<11>(W,S, VectorShiftLeft<8>(vk));
             offset+=16;
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             SHA512_ROUND2<12>(W,S, vk);
             SHA512_ROUND2<13>(W,S, VectorShiftLeft<8>(vk));
             offset+=16;
 
-            vk = VectorLoad64x2(k, offset);
+            vk = VectorLoad64x2u(k, offset);
             SHA512_ROUND2<14>(W,S, vk);
             SHA512_ROUND2<15>(W,S, VectorShiftLeft<8>(vk));
             offset+=16;

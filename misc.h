@@ -413,7 +413,7 @@ inline ptrdiff_t PtrDiff(const PTR pointer1, const PTR pointer2)
 template <typename PTR>
 inline size_t PtrByteDiff(const PTR pointer1, const PTR pointer2)
 {
-	return (size_t)(static_cast<uintptr_t>(pointer1) - static_cast<uintptr_t>(pointer2));
+	return (size_t)(reinterpret_cast<uintptr_t>(pointer1) - reinterpret_cast<uintptr_t>(pointer2));
 }
 
 #if (!__STDC_WANT_SECURE_LIB__ && !defined(_MEMORY_S_DEFINED)) || defined(CRYPTOPP_WANT_SECURE_LIB)
@@ -1057,6 +1057,8 @@ inline unsigned int GetAlignmentOf()
 #elif (_MSC_VER >= 1300)
 	return __alignof(T);
 #elif defined(__GNUC__)
+	return __alignof__(T);
+#elif defined(__SUNPRO_CC)
 	return __alignof__(T);
 #elif CRYPTOPP_BOOL_SLOW_WORD64
 	return UnsignedMin(4U, sizeof(T));
@@ -2068,7 +2070,11 @@ inline T ConditionalByteReverse(ByteOrder order, T value)
 template <class T>
 void ByteReverse(T *out, const T *in, size_t byteCount)
 {
+	// Alignment check due to Issues 690
 	CRYPTOPP_ASSERT(byteCount % sizeof(T) == 0);
+	CRYPTOPP_ASSERT(IsAligned<T>(in));
+	CRYPTOPP_ASSERT(IsAligned<T>(out));
+
 	size_t count = byteCount/sizeof(T);
 	for (size_t i=0; i<count; i++)
 		out[i] = ByteReverse(in[i]);

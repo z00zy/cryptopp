@@ -395,7 +395,10 @@
     <ClCompile Include="simon.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="simon-simd.cpp">
+    <ClCompile Include="simon64-simd.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="simon128-simd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="simple.cpp">
@@ -410,10 +413,16 @@
     <ClCompile Include="sm4.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="sm4-simd.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="speck.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="speck-simd.cpp">
+    <ClCompile Include="speck64-simd.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="speck128-simd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="socketft.cpp">

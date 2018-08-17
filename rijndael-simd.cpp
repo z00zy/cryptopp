@@ -25,25 +25,15 @@
 #include "misc.h"
 #include "adv-simd.h"
 
-// We set CRYPTOPP_POWER8_CRYPTO_AVAILABLE based on compiler version.
-// If the crypto is not available, then we have to disable it here.
-#if !(defined(__CRYPTO) || defined(_ARCH_PWR8) || defined(_ARCH_PWR9))
-# undef CRYPTOPP_POWER8_CRYPTO_AVAILABLE
-# undef CRYPTOPP_POWER8_AES_AVAILABLE
-#endif
-
 #if (CRYPTOPP_AESNI_AVAILABLE)
 # include <smmintrin.h>
 # include <wmmintrin.h>
 #endif
 
-// Use ARMv8 rather than NEON due to compiler inconsistencies
-#if (CRYPTOPP_ARM_AES_AVAILABLE)
+#if (CRYPTOPP_ARM_NEON_AVAILABLE)
 # include <arm_neon.h>
 #endif
 
-// Can't use CRYPTOPP_ARM_XXX_AVAILABLE because too many
-// compilers don't follow ACLE conventions for the include.
 #if defined(CRYPTOPP_ARM_ACLE_AVAILABLE)
 # include <stdint.h>
 # include <arm_acle.h>
@@ -70,6 +60,8 @@
 extern const char RIJNDAEL_SIMD_FNAME[] = __FILE__;
 
 NAMESPACE_BEGIN(CryptoPP)
+
+// ************************* Feature Probes ************************* //
 
 #ifdef CRYPTOPP_GNU_STYLE_INLINE_ASSEMBLY
 extern "C" {
@@ -144,6 +136,155 @@ bool CPU_ProbeAES()
 #endif  // CRYPTOPP_ARM_AES_AVAILABLE
 }
 #endif  // ARM32 or ARM64
+
+#if (CRYPTOPP_BOOL_PPC32 || CRYPTOPP_BOOL_PPC64)
+	bool CPU_ProbePower7()
+{
+#if defined(CRYPTOPP_NO_CPU_FEATURE_PROBES)
+    return false;
+#elif (CRYPTOPP_POWER7_AVAILABLE) || (CRYPTOPP_POWER8_AVAILABLE)
+# if defined(CRYPTOPP_GNU_STYLE_INLINE_ASSEMBLY)
+
+    // longjmp and clobber warnings. Volatile is required.
+    // http://github.com/weidai11/cryptopp/issues/24 and http://stackoverflow.com/q/7721854
+    volatile int result = false;
+
+    volatile SigHandler oldHandler = signal(SIGILL, SigIllHandler);
+    if (oldHandler == SIG_ERR)
+        return false;
+
+    volatile sigset_t oldMask;
+    if (sigprocmask(0, NULLPTR, (sigset_t*)&oldMask))
+        return false;
+
+    if (setjmp(s_jmpSIGILL))
+        result = false;
+    else
+    {
+        // POWER7 added unaligned loads and store operations
+        byte b1[19] = {255, 255, 255, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}, b2[17];
+
+        // Specifically call the VSX loads and stores
+        #if defined(__xlc__) || defined(__xlC__)
+        vec_xst(vec_xl(0, b1+3), 0, b2+1);
+        #else
+        vec_vsx_st(vec_vsx_ld(0, b1+3), 0, b2+1);
+        #endif
+
+        result = (0 == std::memcmp(b1+3, b2+1, 16));
+    }
+
+    sigprocmask(SIG_SETMASK, (sigset_t*)&oldMask, NULLPTR);
+    signal(SIGILL, oldHandler);
+    return result;
+# endif
+#else
+    return false;
+#endif  // CRYPTOPP_POWER7_AVAILABLE
+}
+
+bool CPU_ProbePower8()
+{
+#if defined(CRYPTOPP_NO_CPU_FEATURE_PROBES)
+    return false;
+#elif (CRYPTOPP_POWER8_AVAILABLE)
+# if defined(CRYPTOPP_GNU_STYLE_INLINE_ASSEMBLY)
+
+    // longjmp and clobber warnings. Volatile is required.
+    // http://github.com/weidai11/cryptopp/issues/24 and http://stackoverflow.com/q/7721854
+    volatile int result = true;
+
+    volatile SigHandler oldHandler = signal(SIGILL, SigIllHandler);
+    if (oldHandler == SIG_ERR)
+        return false;
+
+    volatile sigset_t oldMask;
+    if (sigprocmask(0, NULLPTR, (sigset_t*)&oldMask))
+        return false;
+
+    if (setjmp(s_jmpSIGILL))
+        result = false;
+    else
+    {
+        // POWER8 added 64-bit SIMD operations
+        const word64 x = W64LIT(0xffffffffffffffff);
+        word64 w1[2] = {x, x}, w2[2] = {4, 6}, w3[2];
+
+        // Specifically call the VSX loads and stores
+        #if defined(__xlc__) || defined(__xlC__)
+        const uint64x2_p v1 = (uint64x2_p)vec_xl(0, (byte*)w1);
+        const uint64x2_p v2 = (uint64x2_p)vec_xl(0, (byte*)w2);
+        const uint64x2_p v3 = vec_add(v1, v2);  // 64-bit add
+        vec_xst((uint8x16_p)v3, 0, (byte*)w3);
+        #else
+        const uint64x2_p v1 = (uint64x2_p)vec_vsx_ld(0, (byte*)w1);
+        const uint64x2_p v2 = (uint64x2_p)vec_vsx_ld(0, (byte*)w2);
+        const uint64x2_p v3 = vec_add(v1, v2);  // 64-bit add
+        vec_vsx_st((uint8x16_p)v3, 0, (byte*)w3);
+        #endif
+
+        // Relies on integer wrap
+        result = (w3[0] == 3 && w3[1] == 5);
+    }
+
+    sigprocmask(SIG_SETMASK, (sigset_t*)&oldMask, NULLPTR);
+    signal(SIGILL, oldHandler);
+    return result;
+# endif
+#else
+    return false;
+#endif  // CRYPTOPP_POWER8_AVAILABLE
+}
+
+bool CPU_ProbeAES()
+{
+#if defined(CRYPTOPP_NO_CPU_FEATURE_PROBES)
+    return false;
+#elif (CRYPTOPP_POWER8_AES_AVAILABLE)
+# if defined(CRYPTOPP_GNU_STYLE_INLINE_ASSEMBLY)
+
+    // longjmp and clobber warnings. Volatile is required.
+    // http://github.com/weidai11/cryptopp/issues/24 and http://stackoverflow.com/q/7721854
+    volatile int result = true;
+
+    volatile SigHandler oldHandler = signal(SIGILL, SigIllHandler);
+    if (oldHandler == SIG_ERR)
+        return false;
+
+    volatile sigset_t oldMask;
+    if (sigprocmask(0, NULLPTR, (sigset_t*)&oldMask))
+        return false;
+
+    if (setjmp(s_jmpSIGILL))
+        result = false;
+    else
+    {
+        byte key[16] = {0xA0, 0xFA, 0xFE, 0x17, 0x88, 0x54, 0x2c, 0xb1,
+                        0x23, 0xa3, 0x39, 0x39, 0x2a, 0x6c, 0x76, 0x05};
+        byte state[16] = {0x19, 0x3d, 0xe3, 0xb3, 0xa0, 0xf4, 0xe2, 0x2b,
+                          0x9a, 0xc6, 0x8d, 0x2a, 0xe9, 0xf8, 0x48, 0x08};
+        byte r[16] = {255}, z[16] = {};
+
+        uint8x16_p k = (uint8x16_p)VectorLoad(0, key);
+        uint8x16_p s = (uint8x16_p)VectorLoad(0, state);
+        s = VectorEncrypt(s, k);
+        s = VectorEncryptLast(s, k);
+        s = VectorDecrypt(s, k);
+        s = VectorDecryptLast(s, k);
+        VectorStore(s, r);
+
+        result = (0 != std::memcmp(r, z, 16));
+    }
+
+    sigprocmask(SIG_SETMASK, (sigset_t*)&oldMask, NULLPTR);
+    signal(SIGILL, oldHandler);
+    return result;
+# endif
+#else
+    return false;
+#endif  // CRYPTOPP_POWER8_AES_AVAILABLE
+}
+#endif  // PPC32 or PPC64
 
 // ***************************** ARMv8 ***************************** //
 
@@ -556,17 +697,17 @@ static inline void POWER8_Enc_Block(uint32x4_p &block, const word32 *subkeys, un
     CRYPTOPP_ASSERT(IsAlignedOn(subkeys, 16));
     const byte *keys = reinterpret_cast<const byte*>(subkeys);
 
-    uint32x4_p k = VectorLoadKey(keys);
+    uint32x4_p k = VectorLoad(keys);
     block = VectorXor(block, k);
 
     for (size_t i=1; i<rounds-1; i+=2)
     {
-        block = VectorEncrypt(block, VectorLoadKey(  i*16,   keys));
-        block = VectorEncrypt(block, VectorLoadKey((i+1)*16, keys));
+        block = VectorEncrypt(block, VectorLoad(  i*16,   keys));
+        block = VectorEncrypt(block, VectorLoad((i+1)*16, keys));
     }
 
-    block = VectorEncrypt(block, VectorLoadKey((rounds-1)*16, keys));
-    block = VectorEncryptLast(block, VectorLoadKey(rounds*16, keys));
+    block = VectorEncrypt(block, VectorLoad((rounds-1)*16, keys));
+    block = VectorEncryptLast(block, VectorLoad(rounds*16, keys));
 }
 
 static inline void POWER8_Enc_6_Blocks(uint32x4_p &block0, uint32x4_p &block1,
@@ -576,7 +717,7 @@ static inline void POWER8_Enc_6_Blocks(uint32x4_p &block0, uint32x4_p &block1,
     CRYPTOPP_ASSERT(IsAlignedOn(subkeys, 16));
     const byte *keys = reinterpret_cast<const byte*>(subkeys);
 
-    uint32x4_p k = VectorLoadKey(keys);
+    uint32x4_p k = VectorLoad(keys);
     block0 = VectorXor(block0, k);
     block1 = VectorXor(block1, k);
     block2 = VectorXor(block2, k);
@@ -586,7 +727,7 @@ static inline void POWER8_Enc_6_Blocks(uint32x4_p &block0, uint32x4_p &block1,
 
     for (size_t i=1; i<rounds; ++i)
     {
-        k = VectorLoadKey(i*16, keys);
+        k = VectorLoad(i*16, keys);
         block0 = VectorEncrypt(block0, k);
         block1 = VectorEncrypt(block1, k);
         block2 = VectorEncrypt(block2, k);
@@ -595,7 +736,7 @@ static inline void POWER8_Enc_6_Blocks(uint32x4_p &block0, uint32x4_p &block1,
         block5 = VectorEncrypt(block5, k);
     }
 
-    k = VectorLoadKey(rounds*16, keys);
+    k = VectorLoad(rounds*16, keys);
     block0 = VectorEncryptLast(block0, k);
     block1 = VectorEncryptLast(block1, k);
     block2 = VectorEncryptLast(block2, k);
@@ -609,17 +750,17 @@ static inline void POWER8_Dec_Block(uint32x4_p &block, const word32 *subkeys, un
     CRYPTOPP_ASSERT(IsAlignedOn(subkeys, 16));
     const byte *keys = reinterpret_cast<const byte*>(subkeys);
 
-    uint32x4_p k = VectorLoadKey(rounds*16, keys);
+    uint32x4_p k = VectorLoad(rounds*16, keys);
     block = VectorXor(block, k);
 
     for (size_t i=rounds-1; i>1; i-=2)
     {
-        block = VectorDecrypt(block, VectorLoadKey(  i*16,   keys));
-        block = VectorDecrypt(block, VectorLoadKey((i-1)*16, keys));
+        block = VectorDecrypt(block, VectorLoad(  i*16,   keys));
+        block = VectorDecrypt(block, VectorLoad((i-1)*16, keys));
     }
 
-    block = VectorDecrypt(block, VectorLoadKey(16, keys));
-    block = VectorDecryptLast(block, VectorLoadKey(0, keys));
+    block = VectorDecrypt(block, VectorLoad(16, keys));
+    block = VectorDecryptLast(block, VectorLoad(0, keys));
 }
 
 static inline void POWER8_Dec_6_Blocks(uint32x4_p &block0, uint32x4_p &block1,
@@ -629,7 +770,7 @@ static inline void POWER8_Dec_6_Blocks(uint32x4_p &block0, uint32x4_p &block1,
     CRYPTOPP_ASSERT(IsAlignedOn(subkeys, 16));
     const byte *keys = reinterpret_cast<const byte*>(subkeys);
 
-    uint32x4_p k = VectorLoadKey(rounds*16, keys);
+    uint32x4_p k = VectorLoad(rounds*16, keys);
     block0 = VectorXor(block0, k);
     block1 = VectorXor(block1, k);
     block2 = VectorXor(block2, k);
@@ -639,7 +780,7 @@ static inline void POWER8_Dec_6_Blocks(uint32x4_p &block0, uint32x4_p &block1,
 
     for (size_t i=rounds-1; i>0; --i)
     {
-        k = VectorLoadKey(i*16, keys);
+        k = VectorLoad(i*16, keys);
         block0 = VectorDecrypt(block0, k);
         block1 = VectorDecrypt(block1, k);
         block2 = VectorDecrypt(block2, k);
@@ -648,7 +789,7 @@ static inline void POWER8_Dec_6_Blocks(uint32x4_p &block0, uint32x4_p &block1,
         block5 = VectorDecrypt(block5, k);
     }
 
-    k = VectorLoadKey(0, keys);
+    k = VectorLoad(0, keys);
     block0 = VectorDecryptLast(block0, k);
     block1 = VectorDecryptLast(block1, k);
     block2 = VectorDecryptLast(block2, k);
@@ -663,60 +804,62 @@ void Rijndael_UncheckedSetKey_POWER8(const byte* userKey, size_t keyLen, word32*
 {
     const size_t rounds = keyLen / 4 + 6;
     const word32 *rc = s_rconBE;
+	word32 *rkey = rk, temp;
 
-    GetUserKey(BIG_ENDIAN_ORDER, rk, keyLen/4, userKey, keyLen);
-    word32 *rk_saved = rk, temp; // unused in big-endian
-    CRYPTOPP_UNUSED(rk_saved);
+    GetUserKey(BIG_ENDIAN_ORDER, rkey, keyLen/4, userKey, keyLen);
 
     // keySize: m_key allocates 4*(rounds+1) word32's.
     const size_t keySize = 4*(rounds+1);
-    const word32* end = rk + keySize;
+    const word32* end = rkey + keySize;
 
     while (true)
     {
-        temp  = rk[keyLen/4-1];
+        temp  = rkey[keyLen/4-1];
         word32 x = (word32(Se[GETBYTE(temp, 2)]) << 24) ^ (word32(Se[GETBYTE(temp, 1)]) << 16) ^
                     (word32(Se[GETBYTE(temp, 0)]) << 8) ^ Se[GETBYTE(temp, 3)];
-        rk[keyLen/4] = rk[0] ^ x ^ *(rc++);
-        rk[keyLen/4+1] = rk[1] ^ rk[keyLen/4];
-        rk[keyLen/4+2] = rk[2] ^ rk[keyLen/4+1];
-        rk[keyLen/4+3] = rk[3] ^ rk[keyLen/4+2];
+        rkey[keyLen/4] = rkey[0] ^ x ^ *(rc++);
+        rkey[keyLen/4+1] = rkey[1] ^ rkey[keyLen/4];
+        rkey[keyLen/4+2] = rkey[2] ^ rkey[keyLen/4+1];
+        rkey[keyLen/4+3] = rkey[3] ^ rkey[keyLen/4+2];
 
-        if (rk + keyLen/4 + 4 == end)
+        if (rkey + keyLen/4 + 4 == end)
             break;
 
         if (keyLen == 24)
         {
-            rk[10] = rk[ 4] ^ rk[ 9];
-            rk[11] = rk[ 5] ^ rk[10];
+            rkey[10] = rkey[ 4] ^ rkey[ 9];
+            rkey[11] = rkey[ 5] ^ rkey[10];
         }
         else if (keyLen == 32)
         {
-            temp = rk[11];
-            rk[12] = rk[ 4] ^ (word32(Se[GETBYTE(temp, 3)]) << 24) ^ (word32(Se[GETBYTE(temp, 2)]) << 16) ^ (word32(Se[GETBYTE(temp, 1)]) << 8) ^ Se[GETBYTE(temp, 0)];
-            rk[13] = rk[ 5] ^ rk[12];
-            rk[14] = rk[ 6] ^ rk[13];
-            rk[15] = rk[ 7] ^ rk[14];
+            temp = rkey[11];
+            rkey[12] = rkey[ 4] ^ (word32(Se[GETBYTE(temp, 3)]) << 24) ^ (word32(Se[GETBYTE(temp, 2)]) << 16) ^ (word32(Se[GETBYTE(temp, 1)]) << 8) ^ Se[GETBYTE(temp, 0)];
+            rkey[13] = rkey[ 5] ^ rkey[12];
+            rkey[14] = rkey[ 6] ^ rkey[13];
+            rkey[15] = rkey[ 7] ^ rkey[14];
         }
-        rk += keyLen/4;
+        rkey += keyLen/4;
     }
 
 #if defined(CRYPTOPP_LITTLE_ENDIAN)
-    rk = rk_saved;
+    rkey = rk;
     const uint8x16_p mask = ((uint8x16_p){12,13,14,15, 8,9,10,11, 4,5,6,7, 0,1,2,3});
     const uint8x16_p zero = {0};
 
     unsigned int i=0;
-    for (i=0; i<rounds; i+=2, rk+=8)
+    for (i=0; i<rounds; i+=2, rkey+=8)
     {
-        const uint8x16_p d1 = vec_vsx_ld( 0, (uint8_t*)rk);
-        const uint8x16_p d2 = vec_vsx_ld(16, (uint8_t*)rk);
-        vec_vsx_st(vec_perm(d1, zero, mask),  0, (uint8_t*)rk);
-        vec_vsx_st(vec_perm(d2, zero, mask), 16, (uint8_t*)rk);
+        const uint8x16_p d1 = vec_vsx_ld( 0, (uint8_t*)rkey);
+        const uint8x16_p d2 = vec_vsx_ld(16, (uint8_t*)rkey);
+        vec_vsx_st(vec_perm(d1, zero, mask),  0, (uint8_t*)rkey);
+        vec_vsx_st(vec_perm(d2, zero, mask), 16, (uint8_t*)rkey);
     }
 
-    for ( ; i<rounds+1; i++, rk+=4)
-        vec_vsx_st(vec_perm(vec_vsx_ld(0, (uint8_t*)rk), zero, mask), 0, (uint8_t*)rk);
+    for ( ; i<rounds+1; i++, rkey+=4)
+	{
+        const uint8x16_p d = vec_vsx_ld( 0, (uint8_t*)rkey);
+        vec_vsx_st(vec_perm(d, zero, mask),  0, (uint8_t*)rkey);
+	}
 #endif
 }
 

@@ -17,12 +17,23 @@
 #include "seckey.h"
 #include "secblock.h"
 
-#if CRYPTOPP_BOOL_X64 || CRYPTOPP_BOOL_X32 || CRYPTOPP_BOOL_X86 || CRYPTOPP_BOOL_ARM32 || CRYPTOPP_BOOL_ARM64
+#if CRYPTOPP_BOOL_X64 || CRYPTOPP_BOOL_X32 || CRYPTOPP_BOOL_X86 || \
+    CRYPTOPP_BOOL_ARM32 || CRYPTOPP_BOOL_ARM64 || \
+    CRYPTOPP_BOOL_PPC32 || CRYPTOPP_BOOL_PPC64
 # define CRYPTOPP_SPECK64_ADVANCED_PROCESS_BLOCKS 1
 #endif
 
-#if CRYPTOPP_BOOL_X64 || CRYPTOPP_BOOL_X32 || CRYPTOPP_BOOL_X86 || CRYPTOPP_BOOL_ARM32 || CRYPTOPP_BOOL_ARM64
+#if CRYPTOPP_BOOL_X64 || CRYPTOPP_BOOL_X32 || CRYPTOPP_BOOL_X86 || \
+    CRYPTOPP_BOOL_ARM32 || CRYPTOPP_BOOL_ARM64 || \
+    CRYPTOPP_BOOL_PPC32 || CRYPTOPP_BOOL_PPC64
 # define CRYPTOPP_SPECK128_ADVANCED_PROCESS_BLOCKS 1
+#endif
+
+// Yet another SunStudio/SunCC workaround. Failed self tests
+// in SSE code paths on i386 for SunStudio 12.3 and below.
+#if defined(__SUNPRO_CC)
+# undef CRYPTOPP_SPECK64_ADVANCED_PROCESS_BLOCKS
+# undef CRYPTOPP_SPECK128_ADVANCED_PROCESS_BLOCKS
 #endif
 
 NAMESPACE_BEGIN(CryptoPP)
@@ -90,7 +101,7 @@ public:
         void UncheckedSetKey(const byte *userKey, unsigned int keyLength, const NameValuePairs &params);
     };
 
-    /// \brief Provides implementation for encryption transformation
+    /// \brief Encryption transformation
     /// \details Enc provides implementation for encryption transformation. All key
     ///   sizes are supported.
     /// \since Crypto++ 6.0
@@ -103,7 +114,7 @@ public:
 #endif
     };
 
-    /// \brief Provides implementation for encryption transformation
+    /// \brief Encryption transformation
     /// \details Dec provides implementation for decryption transformation. All key
     ///   sizes are supported.
     /// \since Crypto++ 6.0
@@ -149,7 +160,7 @@ public:
         void UncheckedSetKey(const byte *userKey, unsigned int keyLength, const NameValuePairs &params);
     };
 
-    /// \brief Provides implementation for encryption transformation
+    /// \brief Encryption transformation
     /// \details Enc provides implementation for encryption transformation. All key
     ///   sizes are supported.
     /// \since Crypto++ 6.0
@@ -162,7 +173,7 @@ public:
 #endif
     };
 
-    /// \brief Provides implementation for encryption transformation
+    /// \brief Encryption transformation
     /// \details Dec provides implementation for decryption transformation. All key
     ///   sizes are supported.
     /// \since Crypto++ 6.0
