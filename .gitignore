@@ -276,3 +276,7 @@ pip-log.txt
 
 # Dependency file
 *.d
+
+out/
+cpu-features.c
+cpu-features.h
