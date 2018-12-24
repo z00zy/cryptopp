@@ -34,7 +34,7 @@ unset AOSP_STL_LIB
 unset AOSP_BITS_INC
 
 # Tools set by this script
-unset CPP CC CXX LD AS AR RANLIB STRIP
+unset CPP CC CXX LD AS AR RANLIB STRIP AOSP_API
 
 # Similar to a "make clean"
 if [ x"${1-}" = "xunset" ]; then
