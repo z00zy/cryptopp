@@ -187,6 +187,8 @@ esac
 # add missing android API version flag as of https://android.googlesource.com/platform/ndk.git/+/HEAD/docs/UnifiedHeaders.md
 AOSP_FLAGS="-D__ANDROID_API__=$AOSP_API_VERSION $AOSP_FLAGS"
 
+AOSP_FLAGS="$CPPFLAGS $AOSP_FLAGS"
+
 # GNUmakefile-cross expects these to be set. They are also used in the tests below.
 export IS_ANDROID=1
 export AOSP_FLAGS
