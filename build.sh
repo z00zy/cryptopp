@@ -5,7 +5,7 @@ export ANDROID_SDK_ROOT="$HOME/Library/Android/sdk"
 
 OUTPUT="$PWD/out"
 
-for arch in armeabi-v7a arm64-v8a; do
+for arch in armeabi armeabi-v7a arm64-v8a; do
     if [ -e "$OUTPUT/$arch" ]; then
         rm -rf "$OUTPUT/$arch"
     fi
@@ -20,7 +20,7 @@ for arch in armeabi-v7a arm64-v8a; do
     fi
 done
 
-for arch in armeabi-v7a arm64-v8a; do
+for arch in armeabi armeabi-v7a arm64-v8a; do
     AOSP_API_VERSION="21" CPPFLAGS="-ffunction-sections -fdata-sections" source setenv-android-gcc.sh $arch
 
     if [ "$?" -eq "0" ]; then
