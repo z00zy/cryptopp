@@ -53,8 +53,6 @@ IS_SPARC64 := $(shell echo "$(HOSTX)" | $(GREP) -i -c -E 'sun|sparc64')
 IS_ARM32 := $(shell echo "$(HOSTX)" | $(GREP) -i -c -E 'arm|armhf|arm7l|eabihf')
 IS_ARMV8 := $(shell echo "$(HOSTX)" | $(GREP) -i -c -E 'aarch32|aarch64|arm64|armv8')
 
-IS_NEON := $(shell $(CXX) $(CXXFLAGS) -dumpmachine 2>/dev/null | $(GREP) -i -c -E 'armv7|armhf|arm7l|eabihf|armv8|aarch32|aarch64')
-
 # Attempt to determine platform
 SYSTEMX := $(shell $(CXX) $(CXXFLAGS) -dumpmachine 2>/dev/null)
 ifeq ($(SYSTEMX),)
@@ -62,6 +60,7 @@ ifeq ($(SYSTEMX),)
 endif
 
 IS_LINUX := $(shell echo "$(SYSTEMX)" | $(GREP) -i -c "Linux")
+IS_HURD := $(shell echo "$(SYSTEMX)" | $(GREP) -i -c -E "GNU|Hurd")
 IS_MINGW := $(shell echo "$(SYSTEMX)" | $(GREP) -i -c "MinGW")
 IS_CYGWIN := $(shell echo "$(SYSTEMX)" | $(GREP) -i -c "Cygwin")
 IS_DARWIN := $(shell echo "$(SYSTEMX)" | $(GREP) -i -c "Darwin")
@@ -86,7 +85,7 @@ endif
 
 # Enable shared object versioning for Linux and Solaris
 HAS_SOLIB_VERSION ?= 0
-ifneq ($(IS_LINUX)$(IS_SUN),00)
+ifneq ($(IS_LINUX)$(IS_HURD)$(IS_SUN),000)
   HAS_SOLIB_VERSION := 1
 endif
 
@@ -121,6 +120,9 @@ ifeq ($(DETECT_FEATURES),1)
   ifneq ($(strip $(TCXXFLAGS)),)
     $(info Using testing flags: $(TCXXFLAGS))
   endif
+  #TPROG = TestPrograms/test_cxx.cxx
+  #$(info Testing compile... )
+  #$(info $(shell $(CXX) $(TCXXFLAGS) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 1>/dev/null))
 endif
 
 # Fixup AIX
@@ -266,6 +268,7 @@ ifeq ($(DETECT_FEATURES),1)
   ifeq ($(strip $(HAVE_OPT)),0)
     ARIA_FLAG = $(SSSE3_FLAG)
     CHAM_FLAG = $(SSSE3_FLAG)
+    KECCAK_FLAG = $(SSSE3_FLAG)
     LEA_FLAG = $(SSSE3_FLAG)
     SIMECK_FLAG = $(SSSE3_FLAG)
     SIMON64_FLAG = $(SSSE3_FLAG)
@@ -388,8 +391,8 @@ ifeq ($(DETECT_FEATURES),1)
     endif
   endif
 
-  # Drop to SSSE2 if available
-  ifeq ($(SSSE3_FLAG),)
+  # Drop to SSE2 if available
+  ifeq ($(GCM_FLAG),)
     ifneq ($(SSE2_FLAG),)
       GCM_FLAG = $(SSE2_FLAG)
     endif
@@ -434,10 +437,10 @@ endif
 #####            ARM A-32, Aach64 and NEON            #####
 ###########################################################
 
-ifneq ($(IS_ARM32)$(IS_ARMV8)$(IS_NEON),000)
+ifneq ($(IS_ARM32)$(IS_ARMV8),00)
 ifeq ($(DETECT_FEATURES),1)
 
-ifeq ($(IS_ARM32)$(IS_NEON),11)
+ifneq ($(IS_ARM32),0)
 
   TPROG = TestPrograms/test_arm_neon.cxx
   TOPT = -march=armv7-a -mfloat-abi=$(FP_ABI) -mfpu=neon
@@ -464,7 +467,7 @@ ifeq ($(IS_ARM32)$(IS_NEON),11)
     CXXFLAGS += -DCRYPTOPP_DISABLE_ASM
   endif
 
-# IS_NEON
+# IS_ARM32
 endif
 
 ifeq ($(IS_ARMV8),1)
@@ -480,7 +483,7 @@ ifeq ($(IS_ARMV8),1)
 
   TPROG = TestPrograms/test_arm_asimd.cxx
   TOPT = -march=armv8-a
-  HAVE_OPT = $(shell $(CXX) $(CXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
+  HAVE_OPT = $(shell $(CXX) $(TCXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
   ifeq ($(strip $(HAVE_OPT)),0)
     ASIMD_FLAG = -march=armv8-a
     ARIA_FLAG = -march=armv8-a
@@ -503,7 +506,7 @@ ifeq ($(IS_ARMV8),1)
   ifneq ($(ASIMD_FLAG),)
     TPROG = TestPrograms/test_arm_crc.cxx
     TOPT = -march=armv8-a+crc
-    HAVE_OPT = $(shell $(CXX) $(CXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
+    HAVE_OPT = $(shell $(CXX) $(TCXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
     ifeq ($(strip $(HAVE_OPT)),0)
       CRC_FLAG = -march=armv8-a+crc
     else
@@ -512,7 +515,7 @@ ifeq ($(IS_ARMV8),1)
 
     TPROG = TestPrograms/test_arm_aes.cxx
     TOPT = -march=armv8-a+crypto
-    HAVE_OPT = $(shell $(CXX) $(CXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
+    HAVE_OPT = $(shell $(CXX) $(TCXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
     ifeq ($(strip $(HAVE_OPT)),0)
       AES_FLAG = -march=armv8-a+crypto
     else
@@ -521,7 +524,7 @@ ifeq ($(IS_ARMV8),1)
 
     TPROG = TestPrograms/test_arm_pmull.cxx
     TOPT = -march=armv8-a+crypto
-    HAVE_OPT = $(shell $(CXX) $(CXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
+    HAVE_OPT = $(shell $(CXX) $(TCXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
     ifeq ($(strip $(HAVE_OPT)),0)
       GCM_FLAG = -march=armv8-a+crypto
       GF2N_FLAG = -march=armv8-a+crypto
@@ -531,7 +534,7 @@ ifeq ($(IS_ARMV8),1)
 
     TPROG = TestPrograms/test_arm_sha.cxx
     TOPT = -march=armv8-a+crypto
-    HAVE_OPT = $(shell $(CXX) $(CXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
+    HAVE_OPT = $(shell $(CXX) $(TCXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
     ifeq ($(strip $(HAVE_OPT)),0)
       SHA_FLAG = -march=armv8-a+crypto
     else
@@ -540,7 +543,7 @@ ifeq ($(IS_ARMV8),1)
 
     TPROG = TestPrograms/test_arm_sm3.cxx
     TOPT = -march=armv8.4-a+crypto
-    HAVE_OPT = $(shell $(CXX) $(CXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
+    HAVE_OPT = $(shell $(CXX) $(TCXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
     ifeq ($(strip $(HAVE_OPT)),0)
       SM3_FLAG = -march=armv8.4-a+crypto
       SM4_FLAG = -march=armv8.4-a+crypto
@@ -548,7 +551,7 @@ ifeq ($(IS_ARMV8),1)
 
     TPROG = TestPrograms/test_arm_sha3.cxx
     TOPT = -march=armv8.4-a+crypto
-    HAVE_OPT = $(shell $(CXX) $(CXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
+    HAVE_OPT = $(shell $(CXX) $(TCXXFLAGS) $(ACLE_FLAG) $(ZOPT) $(TOPT) $(TPROG) -o $(TOUT) 2>&1 | tr ' ' '\n' | wc -l)
     ifeq ($(strip $(HAVE_OPT)),0)
       SHA3_FLAG = -march=armv8.4-a+crypto
     endif
@@ -562,7 +565,7 @@ endif
 # DETECT_FEATURES
 endif
 
-# IS_ARM32, IS_ARMV8, IS_NEON
+# IS_ARM32, IS_ARMV8
 endif
 
 ###########################################################
@@ -822,13 +825,13 @@ endif  # SunOS
 #  LDLIBS += -lnsl -lsocket
 #endif
 
-ifeq ($(IS_LINUX),1)
+ifneq ($(IS_LINUX)$(IS_HURD),00)
   ifeq ($(findstring -fopenmp,$(CXXFLAGS)),-fopenmp)
     ifeq ($(findstring -lgomp,$(LDLIBS)),)
       LDLIBS += -lgomp
     endif # LDLIBS
   endif # OpenMP
-endif # IS_LINUX
+endif # IS_LINUX or IS_HURD
 
 # Add -errtags=yes to get the name for a warning suppression
 ifneq ($(SUN_COMPILER),0)	# override flags for CC Sun C++ compiler
@@ -1012,7 +1015,7 @@ ifeq ($(HAS_SOLIB_VERSION),1)
 # Different patchlevels and minors are compatible since 6.1
 SOLIB_COMPAT_SUFFIX=.$(LIB_MAJOR)
 # Linux uses -Wl,-soname
-ifeq ($(IS_LINUX),1)
+ifneq ($(IS_LINUX)$(IS_HURD),00)
 # Linux uses full version suffix for shared library
 SOLIB_VERSION_SUFFIX=.$(LIB_MAJOR).$(LIB_MINOR).$(LIB_PATCH)
 SOLIB_FLAGS=-Wl,-soname,libcryptopp.so$(SOLIB_COMPAT_SUFFIX)
@@ -1127,9 +1130,13 @@ lcov coverage: cryptest.exe
 	lcov --base-directory . --directory . --zerocounters -q
 	./cryptest.exe v
 	./cryptest.exe tv all
+	./cryptest.exe b 0.25
 	lcov --base-directory . --directory . -c -o cryptest.info
-	lcov --remove cryptest.info "adhoc.cpp" "wait.*" "network.*" "socketft.*" "fips140.*" "*test.*" "bench*.cpp" "validat*.*" "/usr/*" -o cryptest.info
-	genhtml -o ./TestCoverage/ -t "cryptest.exe test coverage" --num-spaces 4 cryptest.info
+	lcov --remove cryptest.info "adhoc.*" -o cryptest.info
+	lcov --remove cryptest.info "fips140.*" -o cryptest.info
+	lcov --remove cryptest.info "*test.*" -o cryptest.info
+	lcov --remove cryptest.info "/usr/*" -o cryptest.info
+	genhtml -o ./TestCoverage/ -t "Crypto++ test coverage" --num-spaces 4 cryptest.info
 
 # Travis CI and CodeCov rule
 .PHONY: gcov codecov
@@ -1340,7 +1347,7 @@ libcryptopp.pc:
 	@echo '' >> libcryptopp.pc
 	@echo 'Name: Crypto++' >> libcryptopp.pc
 	@echo 'Description: Crypto++ cryptographic library' >> libcryptopp.pc
-	@echo 'Version: 8.1' >> libcryptopp.pc
+	@echo 'Version: 8.2' >> libcryptopp.pc
 	@echo 'URL: https://cryptopp.com/' >> libcryptopp.pc
 	@echo '' >> libcryptopp.pc
 	@echo 'Cflags: -I$${includedir}' >> libcryptopp.pc
@@ -1393,7 +1400,7 @@ ifneq ($(IS_DARWIN),0)
 	$(CP) cryptopp$(LIB_VER).zip $(PWD)/cryptopp$(LIB_VER)
 	hdiutil makehybrid -iso -joliet -o cryptopp$(LIB_VER).iso $(PWD)/cryptopp$(LIB_VER)
 	@-$(RM) -r $(PWD)/cryptopp$(LIB_VER)
-else ifneq ($(IS_LINUX),0)
+else ifneq ($(IS_LINUX)$(IS_HURD),00)
 	$(MKDIR) $(PWD)/cryptopp$(LIB_VER)
 	$(CP) cryptopp$(LIB_VER).zip $(PWD)/cryptopp$(LIB_VER)
 	genisoimage -q -o cryptopp$(LIB_VER).iso $(PWD)/cryptopp$(LIB_VER)
@@ -1466,6 +1473,10 @@ gcm_simd.o : gcm_simd.cpp
 # Carryless multiply
 gf2n_simd.o : gf2n_simd.cpp
 	$(CXX) $(strip $(CXXFLAGS) $(GF2N_FLAG) -c) $<
+
+# SSSE3 available
+keccak_simd.o : keccak_simd.cpp
+	$(CXX) $(strip $(CXXFLAGS) $(KECCAK_FLAG) -c) $<
 
 # SSSE3 available
 lea_simd.o : lea_simd.cpp

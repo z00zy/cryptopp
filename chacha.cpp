@@ -39,6 +39,7 @@ void ChaCha_TestInstantiations()
 {
     ChaCha::Encryption x;
     ChaChaTLS::Encryption y;
+    XChaCha20::Encryption z;
 }
 #endif
 
@@ -218,9 +219,35 @@ void ChaCha_OperateKeystream(KeystreamOperation operation,
 
     // We may re-enter a SIMD keystream operation from here.
     } while (iterationCount--);
+}
 
-    #undef CHACHA_QUARTER_ROUND
-    #undef CHACHA_OUTPUT
+// XChaCha key derivation
+void HChaCha_OperateKeystream(const word32 state[16], word32 output[8])
+{
+    word32 x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15;
+
+    x0 = state[0];    x1 = state[1];    x2 = state[2];    x3 = state[3];
+    x4 = state[4];    x5 = state[5];    x6 = state[6];    x7 = state[7];
+    x8 = state[8];    x9 = state[9];    x10 = state[10];  x11 = state[11];
+    x12 = state[12];  x13 = state[13];  x14 = state[14];  x15 = state[15];
+
+    for (int i = 20; i > 0; i -= 2)
+    {
+        CHACHA_QUARTER_ROUND(x0, x4,  x8, x12);
+        CHACHA_QUARTER_ROUND(x1, x5,  x9, x13);
+        CHACHA_QUARTER_ROUND(x2, x6, x10, x14);
+        CHACHA_QUARTER_ROUND(x3, x7, x11, x15);
+
+        CHACHA_QUARTER_ROUND(x0, x5, x10, x15);
+        CHACHA_QUARTER_ROUND(x1, x6, x11, x12);
+        CHACHA_QUARTER_ROUND(x2, x7,  x8, x13);
+        CHACHA_QUARTER_ROUND(x3, x4,  x9, x14);
+    }
+
+    output[0] =  x0; output[1] =  x1;
+    output[2] =  x2; output[3] =  x3;
+    output[4] = x12; output[5] = x13;
+    output[6] = x14; output[7] = x15;
 }
 
 std::string ChaCha_AlgorithmProvider()
@@ -316,10 +343,15 @@ std::string ChaCha_Policy::AlgorithmProvider() const
 void ChaCha_Policy::CipherSetKey(const NameValuePairs &params, const byte *key, size_t length)
 {
     CRYPTOPP_ASSERT(key); CRYPTOPP_ASSERT(length == 16 || length == 32);
+    CRYPTOPP_UNUSED(key); CRYPTOPP_UNUSED(length);
 
-    m_rounds = params.GetIntValueWithDefault(Name::Rounds(), 20);
-    if (m_rounds != 20 && m_rounds != 12 && m_rounds != 8)
-        throw InvalidRounds(ChaCha::StaticAlgorithmName(), m_rounds);
+    // Use previous rounds as the default value
+    int rounds = params.GetIntValueWithDefault(Name::Rounds(), m_rounds);
+    if (rounds != 20 && rounds != 12 && rounds != 8)
+        throw InvalidRounds(ChaCha::StaticAlgorithmName(), rounds);
+
+    // Latch a good value
+    m_rounds = rounds;
 
     // "expand 16-byte k" or "expand 32-byte k"
     m_state[0] = 0x61707865;
@@ -337,7 +369,7 @@ void ChaCha_Policy::CipherSetKey(const NameValuePairs &params, const byte *key, 
 void ChaCha_Policy::CipherResynchronize(byte *keystreamBuffer, const byte *IV, size_t length)
 {
     CRYPTOPP_UNUSED(keystreamBuffer), CRYPTOPP_UNUSED(length);
-    CRYPTOPP_ASSERT(length==8);
+    CRYPTOPP_ASSERT(length==8); CRYPTOPP_UNUSED(length);
 
     GetBlock<word32, LittleEndian> get(IV);
     m_state[12] = m_state[13] = 0;
@@ -382,14 +414,15 @@ std::string ChaChaTLS_Policy::AlgorithmProvider() const
 void ChaChaTLS_Policy::CipherSetKey(const NameValuePairs &params, const byte *key, size_t length)
 {
     CRYPTOPP_ASSERT(key); CRYPTOPP_ASSERT(length == 32);
+    CRYPTOPP_UNUSED(length);
 
     // ChaChaTLS is always 20 rounds. Fetch Rounds() to avoid a spurious failure.
-    int rounds = params.GetIntValueWithDefault(Name::Rounds(), m_rounds);
+    int rounds = params.GetIntValueWithDefault(Name::Rounds(), ROUNDS);
     if (rounds != 20)
         throw InvalidRounds(ChaChaTLS::StaticAlgorithmName(), rounds);
 
-    // RFC 7539 test vectors use an initial block counter. However, the counter
-    // can be an arbitrary value per RFC 7539 Section 2.4. We stash the counter
+    // RFC 8439 test vectors use an initial block counter. However, the counter
+    // can be an arbitrary value per RFC 8439 Section 2.4. We stash the counter
     // away in state[16] and use it for a Resynchronize() operation. I think
     // the initial counter is used more like a Tweak when non-0, and it should
     // be provided in Resynchronize() (light-weight re-keying). However,
@@ -397,19 +430,14 @@ void ChaChaTLS_Policy::CipherSetKey(const NameValuePairs &params, const byte *ke
     // the function, so we have to use the heavier-weight SetKey to change it.
     word64 block;
     if (params.GetValue("InitialBlock", block))
-        m_state[16] = static_cast<word32>(block);
+        m_counter = static_cast<word32>(block);
     else
-        m_state[16] = 0;
+        m_counter = 0;
 
-    // State words are defined in RFC 7539, Section 2.3.
-    m_state[0] = 0x61707865;
-    m_state[1] = 0x3320646e;
-    m_state[2] = 0x79622d32;
-    m_state[3] = 0x6b206574;
-
-    // State words are defined in RFC 7539, Section 2.3. Key is 32-bytes.
+    // State words are defined in RFC 8439, Section 2.3. Key is 32-bytes.
     GetBlock<word32, LittleEndian> get(key);
-    get(m_state[4])(m_state[5])(m_state[6])(m_state[7])(m_state[8])(m_state[9])(m_state[10])(m_state[11]);
+    get(m_state[KEY+0])(m_state[KEY+1])(m_state[KEY+2])(m_state[KEY+3])
+        (m_state[KEY+4])(m_state[KEY+5])(m_state[KEY+6])(m_state[KEY+7]);
 }
 
 void ChaChaTLS_Policy::CipherResynchronize(byte *keystreamBuffer, const byte *IV, size_t length)
@@ -417,9 +445,16 @@ void ChaChaTLS_Policy::CipherResynchronize(byte *keystreamBuffer, const byte *IV
     CRYPTOPP_UNUSED(keystreamBuffer), CRYPTOPP_UNUSED(length);
     CRYPTOPP_ASSERT(length==12);
 
-    // State words are defined in RFC 7539, Section 2.3
+    // State words are defined in RFC 8439, Section 2.3.
+    m_state[0] = 0x61707865; m_state[1] = 0x3320646e;
+    m_state[2] = 0x79622d32; m_state[3] = 0x6b206574;
+
+    // Copy saved key into state
+    std::memcpy(m_state+4, m_state+KEY, 8*sizeof(word32));
+
+    // State words are defined in RFC 8439, Section 2.3
     GetBlock<word32, LittleEndian> get(IV);
-    m_state[12] = m_state[16];
+    m_state[12] = m_counter;
     get(m_state[13])(m_state[14])(m_state[15]);
 }
 
@@ -448,15 +483,108 @@ void ChaChaTLS_Policy::OperateKeystream(KeystreamOperation operation,
 {
     word32 discard=0;
     ChaCha_OperateKeystream(operation, m_state, m_state[12], discard,
-            m_rounds, output, input, iterationCount);
+            ROUNDS, output, input, iterationCount);
 
     // If this fires it means ChaCha_OperateKeystream generated a counter
     // block carry that was discarded. The problem is, the RFC does not
     // specify what should happen when the counter block wraps. All we can
     // do is inform the user that something bad may happen because we don't
     // know what we should do.
-    // Also see https://github.com/weidai11/cryptopp/issues/790.
-    CRYPTOPP_ASSERT(discard==0);
+    // Also see https://github.com/weidai11/cryptopp/issues/790 and
+    // https://mailarchive.ietf.org/arch/msg/cfrg/gsOnTJzcbgG6OqD8Sc0GO5aR_tU
+    // CRYPTOPP_ASSERT(discard==0);
+}
+
+////////////////////////////// IETF XChaCha20 //////////////////////////////
+
+std::string XChaCha20_Policy::AlgorithmName() const
+{
+    return std::string("XChaCha20");
+}
+
+std::string XChaCha20_Policy::AlgorithmProvider() const
+{
+    return ChaCha_AlgorithmProvider();
+}
+
+void XChaCha20_Policy::CipherSetKey(const NameValuePairs &params, const byte *key, size_t length)
+{
+    CRYPTOPP_ASSERT(key); CRYPTOPP_ASSERT(length == 32);
+    CRYPTOPP_UNUSED(length);
+
+    // Use previous rounds as the default value
+    int rounds = params.GetIntValueWithDefault(Name::Rounds(), m_rounds);
+    if (rounds != 20 && rounds != 12)
+        throw InvalidRounds(ChaCha::StaticAlgorithmName(), rounds);
+
+    // Latch a good value
+    m_rounds = rounds;
+
+    word64 block;
+    if (params.GetValue("InitialBlock", block))
+        m_counter = static_cast<word32>(block);
+    else
+        m_counter = 1;
+
+    // Stash key away for use in CipherResynchronize
+    GetBlock<word32, LittleEndian> get(key);
+    get(m_state[KEY+0])(m_state[KEY+1])(m_state[KEY+2])(m_state[KEY+3])
+        (m_state[KEY+4])(m_state[KEY+5])(m_state[KEY+6])(m_state[KEY+7]);
+}
+
+void XChaCha20_Policy::CipherResynchronize(byte *keystreamBuffer, const byte *iv, size_t length)
+{
+    CRYPTOPP_UNUSED(keystreamBuffer), CRYPTOPP_UNUSED(length);
+    CRYPTOPP_ASSERT(length==24);
+
+    // HChaCha derivation
+    m_state[0] = 0x61707865; m_state[1] = 0x3320646e;
+    m_state[2] = 0x79622d32; m_state[3] = 0x6b206574;
+
+    // Copy saved key into state
+    std::memcpy(m_state+4, m_state+KEY, 8*sizeof(word32));
+
+    GetBlock<word32, LittleEndian> get(iv);
+    get(m_state[12])(m_state[13])(m_state[14])(m_state[15]);
+
+    // Operate the keystream without adding state back in.
+    // This function also gathers the key words into a
+    // contiguous 8-word block.
+    HChaCha_OperateKeystream(m_state, m_state+4);
+
+    // XChaCha state
+    m_state[0] = 0x61707865; m_state[1] = 0x3320646e;
+    m_state[2] = 0x79622d32; m_state[3] = 0x6b206574;
+
+    // Setup new IV
+    m_state[12] = m_counter;
+    m_state[13] = 0;
+    m_state[14] = GetWord<word32>(false, LITTLE_ENDIAN_ORDER, iv+16);
+    m_state[15] = GetWord<word32>(false, LITTLE_ENDIAN_ORDER, iv+20);
+}
+
+void XChaCha20_Policy::SeekToIteration(lword iterationCount)
+{
+    // Should we throw here??? XChaCha does not have a block
+    // counter, so I'm not sure how to seek on it.
+    CRYPTOPP_ASSERT(0); CRYPTOPP_UNUSED(iterationCount);
+}
+
+unsigned int XChaCha20_Policy::GetAlignment() const
+{
+    return ChaCha_GetAlignment();
+}
+
+unsigned int XChaCha20_Policy::GetOptimalBlockSize() const
+{
+    return ChaCha_GetOptimalBlockSize();
+}
+
+void XChaCha20_Policy::OperateKeystream(KeystreamOperation operation,
+        byte *output, const byte *input, size_t iterationCount)
+{
+    ChaCha_OperateKeystream(operation, m_state, m_state[12], m_state[13],
+            m_rounds, output, input, iterationCount);
 }
 
 NAMESPACE_END

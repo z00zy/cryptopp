@@ -116,7 +116,10 @@
 //   the version of the library the headers came from. It is not
 //   necessarily the version of the library built as a shared object if
 //   versions are inadvertently mixed and matched.
-#define CRYPTOPP_VERSION 810
+#define CRYPTOPP_MAJOR 8
+#define CRYPTOPP_MINOR 2
+#define CRYPTOPP_REVISION 0
+#define CRYPTOPP_VERSION 820
 
 // Define this if you want to set a prefix for TestData/ and TestVectors/
 //   Be sure to add the trailing slash since its simple concatenation.
@@ -591,7 +594,7 @@ NAMESPACE_END
 // Requires Binutils 2.24
 #if !defined(CRYPTOPP_DISABLE_AVX2) && defined(CRYPTOPP_AVX_AVAILABLE) && \
 	(defined(__AVX2__) || (CRYPTOPP_MSC_VERSION >= 1800) || (__SUNPRO_CC >= 0x5130) || \
-	(CRYPTOPP_GCC_VERSION >= 40700) || (__INTEL_COMPILER >= 1400) || \
+	(CRYPTOPP_GCC_VERSION >= 40900) || (__INTEL_COMPILER >= 1400) || \
 	(CRYPTOPP_LLVM_CLANG_VERSION >= 30100) || (CRYPTOPP_APPLE_CLANG_VERSION >= 40600))
 #define CRYPTOPP_AVX2_AVAILABLE 1
 #endif
